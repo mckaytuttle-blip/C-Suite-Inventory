@@ -41,14 +41,39 @@ export interface FillRateSummary {
 
 let client: Redis | null = null;
 
+// Vercel's Marketplace Redis integrations don't always use the plain
+// UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN names — depending on what
+// you named the store when connecting it, Vercel may prefix them (e.g.
+// STORAGE_KV_REST_API_URL / STORAGE_KV_REST_API_TOKEN). Rather than requiring
+// an exact rename in the Vercel dashboard, check a few known variants in order.
+const URL_ENV_CANDIDATES = [
+  "UPSTASH_REDIS_REST_URL",
+  "STORAGE_KV_REST_API_URL",
+  "KV_REST_API_URL",
+];
+const TOKEN_ENV_CANDIDATES = [
+  "UPSTASH_REDIS_REST_TOKEN",
+  "STORAGE_KV_REST_API_TOKEN",
+  "KV_REST_API_TOKEN",
+];
+
+function firstDefined(names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) return value;
+  }
+  return undefined;
+}
+
 function getClient(): Redis {
   if (client) return client;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = firstDefined(URL_ENV_CANDIDATES);
+  const token = firstDefined(TOKEN_ENV_CANDIDATES);
   if (!url || !token) {
     throw new Error(
-      "Missing UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN — add the Upstash Redis " +
-        "integration in Vercel (or set these manually) before calling the snapshot/kpi routes."
+      `Missing Redis REST credentials — set one of [${URL_ENV_CANDIDATES.join(", ")}] and ` +
+        `[${TOKEN_ENV_CANDIDATES.join(", ")}] (add the Redis integration in Vercel's Storage ` +
+        "tab, or set these manually) before calling the snapshot/kpi routes."
     );
   }
   client = new Redis({ url, token });
