@@ -2,13 +2,13 @@
 :root {
   --bg: #FEFCF2;
   --bg-elevated: #090b16;
-  --panel: #0d1020;
-  --panel-hover: #11142a;
+  --panel: #EAF0FF;
+  --panel-hover: #DCE6FF;
   --panel-border: #F5EDD8;
   --panel-border-strong: #2a3266;
 
-  --text: #eef1fb;
-  --muted: #8891ab;
+  --text: #14192B;
+  --muted: #5A6178;
   --muted-dim: #5b6280;
 
   --brand-blue: #2f43f0;
