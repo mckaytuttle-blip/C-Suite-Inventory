@@ -1,6 +1,6 @@
 /* Palette sampled directly from the Stat logo gradient (deep blue -> mint teal). */
 :root {
-  --bg: #FEFCF2;
+  --bg: #FFFFFF;
   --bg-elevated: #090b16;
   --panel: #EAF0FF;
   --panel-hover: #DCE6FF;
