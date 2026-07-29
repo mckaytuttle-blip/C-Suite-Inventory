@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { pct, rateTone, toneColor } from "@/lib/format";
+import { pct } from "@/lib/format";
 
 interface KpiCardProps {
   label: string;
@@ -10,12 +10,16 @@ interface KpiCardProps {
   sub?: string;
 }
 
+// Headline KPI values on the Executive Overview always render in the brand teal,
+// regardless of how good/bad the number is — this card is meant to read as "the
+// brand's number," not a status light. Red/yellow/green status coloring still
+// applies on the /in-stock and /fill-rate detail tables, where at-a-glance status
+// across many rows is the point.
 export default function KpiCard({ label, value, definition, href, linkLabel, sub }: KpiCardProps) {
-  const tone = rateTone(value);
   return (
     <div className="kpi-card">
       <div className="label">{label}</div>
-      <div className="value" style={{ color: toneColor(tone) }}>
+      <div className="value" style={{ color: "var(--brand-teal)" }}>
         {pct(value)}
       </div>
       <p className="definition">{definition}</p>
