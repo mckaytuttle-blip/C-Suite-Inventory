@@ -2,9 +2,10 @@ import { Redis } from "@upstash/redis";
 
 // Data model:
 //
-//   snapshot:{YYYY-MM-DD}   -> ComponentSnapshot   (one per day, components' in-stock status)
-//   fillrate:latest         -> FillRateSummary      (rolling 30-day fill rate, refreshed daily)
-//   meta:last_snapshot_run  -> ISO timestamp string (for troubleshooting/observability)
+//   snapshot:{YYYY-MM-DD}      -> ComponentSnapshot     (one per day, components' in-stock status)
+//   fillrate:latest            -> FillRateSummary        (rolling 30-day fill rate, refreshed daily)
+//   fillrate:history:{YYYY-MM-DD} -> FillRateHistoryPoint (lightweight daily point, for trend charts)
+//   meta:last_snapshot_run     -> ISO timestamp string   (for troubleshooting/observability)
 
 export interface ComponentSnapshotEntry {
   itemId: string | null;
@@ -37,6 +38,20 @@ export interface FillRateSummary {
   totalShipped: number;
   overallFillRate: number | null;
   byAssembly: AssemblyFillRate[];
+}
+
+/**
+ * Lightweight daily point derived from a FillRateSummary, kept indefinitely (unlike
+ * fillrate:latest, which gets overwritten every run) so the Fill Rate Detail page can
+ * chart how the rolling 30-day rate has moved over time — same pattern as the daily
+ * component snapshots use for In-Stock Rate history.
+ */
+export interface FillRateHistoryPoint {
+  date: string; // YYYY-MM-DD — the day this snapshot was taken, not the order date
+  overallFillRate: number | null;
+  totalOrdered: number;
+  totalShipped: number;
+  byAssembly: Record<string, { ordered: number; shipped: number }>;
 }
 
 let client: Redis | null = null;
@@ -106,6 +121,20 @@ export async function saveFillRateSummary(summary: FillRateSummary): Promise<voi
 export async function getFillRateSummary(): Promise<FillRateSummary | null> {
   const redis = getClient();
   return (await redis.get<FillRateSummary>("fillrate:latest")) ?? null;
+}
+
+export async function saveFillRateHistoryPoint(point: FillRateHistoryPoint): Promise<void> {
+  const redis = getClient();
+  await redis.set(`fillrate:history:${point.date}`, point);
+}
+
+export async function getFillRateHistoryPoints(
+  dates: string[]
+): Promise<(FillRateHistoryPoint | null)[]> {
+  if (dates.length === 0) return [];
+  const redis = getClient();
+  const keys = dates.map((d) => `fillrate:history:${d}`);
+  return redis.mget<FillRateHistoryPoint[]>(...keys);
 }
 
 export async function setLastSnapshotRun(iso: string): Promise<void> {

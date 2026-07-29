@@ -1,6 +1,13 @@
 import { TRACKED_COMPONENTS } from "./components";
 import { lastNDateKeys } from "./dates";
-import { ComponentSnapshot, FillRateSummary, getComponentSnapshots } from "./store";
+import {
+  ComponentSnapshot,
+  FillRateSummary,
+  getComponentSnapshots,
+  getFillRateHistoryPoints,
+} from "./store";
+
+export type DayStatus = "in-stock" | "out-of-stock" | "no-data";
 
 export interface ComponentInStockRate {
   name: string;
@@ -8,12 +15,14 @@ export interface ComponentInStockRate {
   daysTracked: number;
   daysInStock: number;
   inStockRate: number | null; // null if we have zero days of data for this item
+  history: DayStatus[]; // oldest -> newest, one entry per day in the window
 }
 
 export interface InStockRateSummary {
   windowDays: number;
   windowStart: string;
   windowEnd: string;
+  dateKeys: string[]; // oldest -> newest, same order/length as each component's `history`
   overallInStockRate: number | null;
   daysWithData: number;
   byComponent: ComponentInStockRate[];
@@ -28,12 +37,20 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
   const byComponent: ComponentInStockRate[] = TRACKED_COMPONENTS.map((tc) => {
     let daysTracked = 0;
     let daysInStock = 0;
+    const history: DayStatus[] = [];
     for (const snap of snapshots) {
-      if (!snap) continue;
-      const entry = snap.components[tc.name];
-      if (!entry || !entry.matched) continue;
+      const entry = snap?.components[tc.name];
+      if (!snap || !entry || !entry.matched) {
+        history.push("no-data");
+        continue;
+      }
       daysTracked += 1;
-      if (entry.inStock) daysInStock += 1;
+      if (entry.inStock) {
+        daysInStock += 1;
+        history.push("in-stock");
+      } else {
+        history.push("out-of-stock");
+      }
     }
     return {
       name: tc.name,
@@ -41,6 +58,7 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
       daysTracked,
       daysInStock,
       inStockRate: daysTracked > 0 ? daysInStock / daysTracked : null,
+      history,
     };
   });
 
@@ -58,6 +76,7 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
     windowDays,
     windowStart: dateKeys[0],
     windowEnd: dateKeys[dateKeys.length - 1],
+    dateKeys,
     overallInStockRate: totalDaysTracked > 0 ? totalDaysInStock / totalDaysTracked : null,
     daysWithData,
     byComponent,
@@ -76,4 +95,44 @@ export function viewFillRate(summary: FillRateSummary | null): FillRateView | nu
     .sort((a, b) => (a.fillRate ?? 1) - (b.fillRate ?? 1))
     .slice(0, 10);
   return { ...summary, worstAssemblies };
+}
+
+export interface TrendPoint {
+  date: string;
+  value: number | null;
+}
+
+export interface FillRateTrend {
+  windowDays: number;
+  overall: TrendPoint[];
+  byAssembly: Record<string, TrendPoint[]>;
+}
+
+/**
+ * Daily trend of the rolling fill rate, both overall and per product, built from
+ * the fillrate:history:{date} points written once a day by runFillRateSnapshot.
+ * Sparse until enough days have accumulated — a fresh deploy will only have 1 point.
+ */
+export async function computeFillRateTrend(
+  windowDays = 30,
+  assemblyNames: string[] = []
+): Promise<FillRateTrend> {
+  const dateKeys = lastNDateKeys(windowDays);
+  const points = await getFillRateHistoryPoints(dateKeys);
+
+  const overall: TrendPoint[] = dateKeys.map((date, i) => ({
+    date,
+    value: points[i]?.overallFillRate ?? null,
+  }));
+
+  const byAssembly: Record<string, TrendPoint[]> = {};
+  for (const name of assemblyNames) {
+    byAssembly[name] = dateKeys.map((date, i) => {
+      const entry = points[i]?.byAssembly?.[name];
+      if (!entry || entry.ordered === 0) return { date, value: null };
+      return { date, value: entry.shipped / entry.ordered };
+    });
+  }
+
+  return { windowDays, overall, byAssembly };
 }

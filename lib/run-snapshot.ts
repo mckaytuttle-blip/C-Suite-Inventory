@@ -1,7 +1,6 @@
 import { findTrackedComponent, TRACKED_COMPONENTS } from "./components";
 import { lastNDateKeys, todayKey } from "./dates";
 import {
-  fetchAllCompositeItems,
   fetchAllItems,
   fetchSalesOrderLineItems,
   fetchSalesOrdersInRange,
@@ -13,6 +12,7 @@ import {
   ComponentSnapshotEntry,
   FillRateSummary,
   saveComponentSnapshot,
+  saveFillRateHistoryPoint,
   saveFillRateSummary,
   setLastSnapshotRun,
 } from "./store";
@@ -119,6 +119,19 @@ export async function runFillRateSnapshot(
   };
 
   await saveFillRateSummary(summary);
+
+  // Also record a lightweight daily history point so the trend can be charted over
+  // time — fillrate:latest alone gets overwritten every run and has no memory of past days.
+  await saveFillRateHistoryPoint({
+    date: todayKey(),
+    overallFillRate: summary.overallFillRate,
+    totalOrdered: summary.totalOrdered,
+    totalShipped: summary.totalShipped,
+    byAssembly: Object.fromEntries(
+      byAssembly.map((a) => [a.name, { ordered: a.ordered, shipped: a.shipped }])
+    ),
+  });
+
   return summary;
 }
 
