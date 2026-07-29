@@ -82,7 +82,7 @@ export default async function OverviewPage() {
           value={fillRate?.overallFillRate ?? null}
           definition="Percentage of SO that can be fulfilled immediately from existing stock without delays or backorders."
           href="/fill-rate"
-          linkLabel="View product detail"
+          linkLabel="Take a Deeper Look"
           sub={
             fillRate
               ? `${fillRate.totalShipped.toLocaleString()} of ${fillRate.totalOrdered.toLocaleString()} units shipped · ${fillRate.orderCount} orders`
