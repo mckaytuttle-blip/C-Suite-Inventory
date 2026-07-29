@@ -56,8 +56,8 @@ export default async function OverviewPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Executive Overview</h1>
-          <p className="subtitle">Live inventory health, pulled from Zoho</p>
+          <h1>Inventory Overview</h1>
+          <p className="subtitle">A Quick Look into Inventory Health</p>
         </div>
         <p className="updated">
           {lastRun ? `Last updated ${new Date(lastRun).toLocaleString()}` : "Not yet run"}
@@ -68,9 +68,9 @@ export default async function OverviewPage() {
         <KpiCard
           label="In-Stock Rate"
           value={inStock?.overallInStockRate ?? null}
-          definition="The share of the last 30 days each tracked hardware component had available stock greater than zero in Zoho, averaged across all components."
+          definition="The percentage of time a product is physically available for sale or immediate fulfillment"
           href="/in-stock"
-          linkLabel="View component detail"
+          linkLabel="Take a Deeper Look"
           sub={
             inStock
               ? `${inStock.daysWithData} of ${inStock.windowDays} days of data · ${inStock.byComponent.length} components tracked`
@@ -80,7 +80,7 @@ export default async function OverviewPage() {
         <KpiCard
           label="Fill Rate"
           value={fillRate?.overallFillRate ?? null}
-          definition="Units shipped divided by units ordered on customer sales orders dated in the last 30 days."
+          definition="Percentage of SO that can be fulfilled immediately from existing stock without delays or backorders."
           href="/fill-rate"
           linkLabel="View product detail"
           sub={
