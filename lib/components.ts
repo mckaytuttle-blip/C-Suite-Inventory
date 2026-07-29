@@ -116,3 +116,14 @@ const NORMALIZED_TRACKED = new Map(
 export function findTrackedComponent(zohoName: string): TrackedComponent | undefined {
   return NORMALIZED_TRACKED.get(normalizeName(zohoName));
 }
+export const EXCLUDED_FILL_RATE_PRODUCTS: string[] = [
+  "Cabling Pieces", // one-off item created for a single order, already inactive in Zoho
+];
+
+const NORMALIZED_EXCLUDED_PRODUCTS = new Set(
+  EXCLUDED_FILL_RATE_PRODUCTS.map((n) => normalizeName(n))
+);
+
+export function isExcludedFillRateProduct(zohoName: string): boolean {
+  return NORMALIZED_EXCLUDED_PRODUCTS.has(normalizeName(zohoName));
+}
