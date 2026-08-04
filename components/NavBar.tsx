@@ -16,7 +16,7 @@ export default function NavBar() {
     <header className="topnav">
       <Link href="/" className="brand">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/stat logo.png" alt="Stat" />
+        <img src="/stat logo white.png" alt="Stat" />
         <span>Inventory Dashboard</span>
       </Link>
       <nav>
