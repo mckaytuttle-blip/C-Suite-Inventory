@@ -1,10 +1,9 @@
 import KpiCard from "@/components/KpiCard";
 import { computeInStockRateSummary, InStockRateSummary, viewFillRate, FillRateView } from "@/lib/kpis";
+import { pct } from "@/lib/format";
 import { getFillRateSummary, getLastSnapshotRun } from "@/lib/store";
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
 async function loadData(): Promise<{
   inStock: InStockRateSummary | null;
   fillRate: FillRateView | null;
@@ -22,10 +21,8 @@ async function loadData(): Promise<{
     return { inStock: null, fillRate: null, lastRun: null, error: err?.message ?? String(err) };
   }
 }
-
 export default async function OverviewPage() {
   const { inStock, fillRate, lastRun, error } = await loadData();
-
   if (error) {
     return (
       <div className="page">
@@ -51,6 +48,11 @@ export default async function OverviewPage() {
       </div>
     );
   }
+  // Fill Rate's reporting period is the last fully completed calendar month (not a
+  // rolling window), so label it by month name when available. Older stored summaries
+  // saved before this switch won't have windowLabel yet — fall back to the date range.
+  const fillRateWindowLabel =
+    fillRate?.windowLabel ?? (fillRate ? `${fillRate.windowStart} → ${fillRate.windowEnd}` : null);
 
   return (
     <div className="page">
@@ -63,7 +65,6 @@ export default async function OverviewPage() {
           {lastRun ? `Last updated ${new Date(lastRun).toLocaleString()}` : "Not yet run"}
         </p>
       </div>
-
       <div className="kpi-grid">
         <KpiCard
           label="In-Stock Rate"
@@ -84,16 +85,27 @@ export default async function OverviewPage() {
           href="/fill-rate"
           linkLabel="Take a Deeper Look"
           sub={
-            fillRate
-              ? `${fillRate.totalShipped.toLocaleString()} of ${fillRate.totalOrdered.toLocaleString()} units shipped · ${fillRate.orderCount} orders`
-              : undefined
+            fillRate ? (
+              <>
+                {fillRateWindowLabel} · {fillRate.totalShipped.toLocaleString()} of{" "}
+                {fillRate.totalOrdered.toLocaleString()} units shipped · {fillRate.orderCount} orders
+                {fillRate.otif && (
+                  <>
+                    <br />
+                    OTIF: {pct(fillRate.otif.otifRate)} ({fillRate.otif.otifCount}/
+                    {fillRate.otif.totalOrders} orders on time &amp; in full)
+                  </>
+                )}
+              </>
+            ) : undefined
           }
         />
       </div>
-
       <footer className="page-footer">
-        Both KPIs refresh once daily via a scheduled job that pulls directly from Zoho Inventory.
-        Click either card above for the full breakdown, trends, and underlying data.
+        In-Stock Rate refreshes daily over a trailing 30-day window. Fill Rate and OTIF report on
+        the most recently completed calendar month, refreshed daily until that month&apos;s
+        numbers are final. Click either card above for the full breakdown, trends, and underlying
+        data.
       </footer>
     </div>
   );
