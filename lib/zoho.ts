@@ -98,6 +98,27 @@ export type ZohoSalesOrderLineItem = {
   name: string;
   quantity: number;
   quantity_shipped: number;
+  // Units of this line fulfilled via drop-shipment rather than Stat's own warehouse.
+  // Zoho does NOT add these into quantity_shipped — a fully-fulfilled dropshipped
+  // line shows quantity_shipped: 0 and quantity_dropshipped: <full quantity>, even
+  // though the customer got their order. Fill rate rollups need to add this in
+  // separately (see isDropshipPoClosed below) rather than relying on quantity_shipped
+  // alone, or dropshipped products will always look under-fulfilled.
+  quantity_dropshipped: number;
+};
+
+// A purchase order linked to a sales order for drop-shipment fulfillment (appears
+// in salesorder.purchaseorders[]). There's no separate "PO created?" custom field in
+// Zoho for this — the presence of an entry here *is* that signal. order_status
+// progresses "open" -> "closed" as the PO is received/billed through; treat a
+// dropshipped line's units as reliably shipped only once every linked PO is closed.
+export type ZohoLinkedPurchaseOrder = {
+  purchaseorder_id: string;
+  purchaseorder_number: string;
+  status: string;
+  order_status: string; // "open" | "closed"
+  billed_status: string;
+  date: string;
 };
 // Package record as it appears *nested inside a sales order's own detail response*
 // (salesorder.packages[]) — NOT from the standalone /packages list endpoint. That
@@ -118,6 +139,7 @@ export type ZohoOrderPackage = {
 export type ZohoSalesOrderDetail = {
   lineItems: ZohoSalesOrderLineItem[];
   packages: ZohoOrderPackage[];
+  purchaseOrders: ZohoLinkedPurchaseOrder[];
 };
 /** Fetch every page of /items (leaf, non-composite) items. */
 export async function fetchAllItems(): Promise<ZohoItem[]> {
@@ -182,11 +204,16 @@ export async function fetchSalesOrdersInRange(
  */
 export async function fetchSalesOrderDetail(salesorderId: string): Promise<ZohoSalesOrderDetail> {
   const data = await zohoGet<{
-    salesorder: { line_items: ZohoSalesOrderLineItem[]; packages?: ZohoOrderPackage[] };
+    salesorder: {
+      line_items: ZohoSalesOrderLineItem[];
+      packages?: ZohoOrderPackage[];
+      purchaseorders?: ZohoLinkedPurchaseOrder[];
+    };
   }>(`/salesorders/${salesorderId}`);
   return {
     lineItems: data.salesorder.line_items ?? [],
     packages: data.salesorder.packages ?? [],
+    purchaseOrders: data.salesorder.purchaseorders ?? [],
   };
 }
 /** Simple concurrency-limited map, used to avoid hammering Zoho's rate limits. */
