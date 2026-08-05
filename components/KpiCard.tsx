@@ -7,7 +7,10 @@ interface KpiCardProps {
   definition: string;
   href: string;
   linkLabel: string;
-  sub?: string;
+  // ReactNode (not just string) so callers can pass multi-line content — e.g. the
+  // Fill Rate card on the Overview page uses this to add an OTIF line underneath
+  // the usual "shipped / ordered" summary.
+  sub?: React.ReactNode;
 }
 
 // Headline KPI values on the Executive Overview always render in the brand teal,
