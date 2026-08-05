@@ -93,7 +93,7 @@ export default async function OverviewPage() {
                   <>
                     <br />
                     OTIF: {pct(fillRate.otif.otifRate)} ({fillRate.otif.otifCount}/
-                    {fillRate.otif.totalOrders} orders on time &amp; in full)
+                    {fillRate.otif.eligibleOrders} orders on time &amp; in full)
                   </>
                 )}
               </>
