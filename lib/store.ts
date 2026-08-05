@@ -1,12 +1,10 @@
 import { Redis } from "@upstash/redis";
-
 // Data model:
 //
 //   snapshot:{YYYY-MM-DD}      -> ComponentSnapshot     (one per day, components' in-stock status)
-//   fillrate:latest            -> FillRateSummary        (rolling 30-day fill rate, refreshed daily)
+//   fillrate:latest            -> FillRateSummary        (most recently completed calendar month, refreshed daily)
 //   fillrate:history:{YYYY-MM-DD} -> FillRateHistoryPoint (lightweight daily point, for trend charts)
 //   meta:last_snapshot_run     -> ISO timestamp string   (for troubleshooting/observability)
-
 export interface ComponentSnapshotEntry {
   itemId: string | null;
   stockOnHand: number | null;
@@ -14,14 +12,12 @@ export interface ComponentSnapshotEntry {
   inStock: boolean;
   matched: boolean; // false if this tracked component wasn't found in Zoho at all
 }
-
 export interface ComponentSnapshot {
   date: string; // YYYY-MM-DD
   generatedAt: string; // ISO timestamp
   source: "live" | "backfill";
   components: Record<string, ComponentSnapshotEntry>; // keyed by tracked component name
 }
-
 export interface AssemblyFillRate {
   name: string;
   ordered: number;
@@ -29,33 +25,54 @@ export interface AssemblyFillRate {
   fillRate: number | null; // null if ordered === 0
 }
 
+/**
+ * OTIF — On Time In Full. Unlike Fill Rate above (unit-weighted, partial credit for
+ * partial shipments), OTIF is order-count-based and binary per order: an order either
+ * shipped complete AND by its promised date, or it didn't. "On time" is only knowable
+ * once we look at each order's actual package ship date vs. its promised shipment_date
+ * (see fetchPackagesForOrder in lib/zoho.ts) — the order record itself only carries the
+ * promise, not the actual outcome.
+ */
+export interface OtifSummary {
+  totalOrders: number;
+  inFullCount: number;
+  onTimeCount: number;
+  otifCount: number; // orders that were both in full AND on time
+  otifRate: number | null; // otifCount / totalOrders, null if totalOrders === 0
+}
+
 export interface FillRateSummary {
   windowStart: string; // YYYY-MM-DD
   windowEnd: string; // YYYY-MM-DD
+  // Human-readable label for the reporting period, e.g. "July 2026". Added when Fill
+  // Rate switched from a rolling 30-day window to the last fully completed calendar
+  // month — optional so old stored summaries (pre-switch) don't break at read time.
+  windowLabel?: string;
   generatedAt: string;
   orderCount: number;
   totalOrdered: number;
   totalShipped: number;
   overallFillRate: number | null;
   byAssembly: AssemblyFillRate[];
+  // Optional so summaries saved before OTIF was added don't fail to parse.
+  otif?: OtifSummary;
 }
 
 /**
  * Lightweight daily point derived from a FillRateSummary, kept indefinitely (unlike
  * fillrate:latest, which gets overwritten every run) so the Fill Rate Detail page can
- * chart how the rolling 30-day rate has moved over time — same pattern as the daily
- * component snapshots use for In-Stock Rate history.
+ * chart how the reported month's numbers have moved over time — same pattern as the
+ * daily component snapshots use for In-Stock Rate history.
  */
 export interface FillRateHistoryPoint {
   date: string; // YYYY-MM-DD — the day this snapshot was taken, not the order date
   overallFillRate: number | null;
   totalOrdered: number;
   totalShipped: number;
+  otifRate?: number | null;
   byAssembly: Record<string, { ordered: number; shipped: number }>;
 }
-
 let client: Redis | null = null;
-
 // Vercel's Marketplace Redis integrations don't always use the plain
 // UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN names — depending on what
 // you named the store when connecting it, Vercel may prefix them (e.g.
@@ -71,7 +88,6 @@ const TOKEN_ENV_CANDIDATES = [
   "STORAGE_KV_REST_API_TOKEN",
   "KV_REST_API_TOKEN",
 ];
-
 function firstDefined(names: string[]): string | undefined {
   for (const name of names) {
     const value = process.env[name];
@@ -79,7 +95,6 @@ function firstDefined(names: string[]): string | undefined {
   }
   return undefined;
 }
-
 function getClient(): Redis {
   if (client) return client;
   const url = firstDefined(URL_ENV_CANDIDATES);
@@ -94,40 +109,33 @@ function getClient(): Redis {
   client = new Redis({ url, token });
   return client;
 }
-
 export async function saveComponentSnapshot(snapshot: ComponentSnapshot): Promise<void> {
   const redis = getClient();
   await redis.set(`snapshot:${snapshot.date}`, snapshot);
   await redis.sadd("snapshot:dates", snapshot.date);
 }
-
 export async function getComponentSnapshot(date: string): Promise<ComponentSnapshot | null> {
   const redis = getClient();
   return (await redis.get<ComponentSnapshot>(`snapshot:${date}`)) ?? null;
 }
-
 export async function getComponentSnapshots(dates: string[]): Promise<(ComponentSnapshot | null)[]> {
   if (dates.length === 0) return [];
   const redis = getClient();
   const keys = dates.map((d) => `snapshot:${d}`);
   return redis.mget<ComponentSnapshot[]>(...keys);
 }
-
 export async function saveFillRateSummary(summary: FillRateSummary): Promise<void> {
   const redis = getClient();
   await redis.set("fillrate:latest", summary);
 }
-
 export async function getFillRateSummary(): Promise<FillRateSummary | null> {
   const redis = getClient();
   return (await redis.get<FillRateSummary>("fillrate:latest")) ?? null;
 }
-
 export async function saveFillRateHistoryPoint(point: FillRateHistoryPoint): Promise<void> {
   const redis = getClient();
   await redis.set(`fillrate:history:${point.date}`, point);
 }
-
 export async function getFillRateHistoryPoints(
   dates: string[]
 ): Promise<(FillRateHistoryPoint | null)[]> {
@@ -136,12 +144,10 @@ export async function getFillRateHistoryPoints(
   const keys = dates.map((d) => `fillrate:history:${d}`);
   return redis.mget<FillRateHistoryPoint[]>(...keys);
 }
-
 export async function setLastSnapshotRun(iso: string): Promise<void> {
   const redis = getClient();
   await redis.set("meta:last_snapshot_run", iso);
 }
-
 export async function getLastSnapshotRun(): Promise<string | null> {
   const redis = getClient();
   return (await redis.get<string>("meta:last_snapshot_run")) ?? null;
