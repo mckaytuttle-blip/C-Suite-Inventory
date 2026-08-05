@@ -99,15 +99,25 @@ export type ZohoSalesOrderLineItem = {
   quantity: number;
   quantity_shipped: number;
 };
-export type ZohoPackage = {
+// Package record as it appears *nested inside a sales order's own detail response*
+// (salesorder.packages[]) — NOT from the standalone /packages list endpoint. That
+// standalone endpoint's salesorder_id query param is silently ignored by Zoho (it
+// just returns the org's most recent packages regardless of the filter), so don't
+// use fetchPackagesForOrder-style calls against it. The order-scoped array here is
+// the only reliable source for "did THIS order's packages actually ship, and when."
+export type ZohoOrderPackage = {
   package_id: string;
-  salesorder_id: string;
+  package_number: string;
   status: string; // "shipped" | "not_shipped" | ...
   // The actual date this package went out (YYYY-MM-DD), only meaningful once
-  // status is "shipped". Confusingly shares a name with the *different* field on
-  // ZohoSalesOrder ("shipment_date" there means "promised/due date", not actual).
+  // status is "shipped". Confusingly similar-sounding to the *different* field on
+  // ZohoSalesOrder itself ("shipment_date" there means "promised/due date", not
+  // actual — this "date" field here is the real one).
   date: string;
-  shipment_date: string;
+};
+export type ZohoSalesOrderDetail = {
+  lineItems: ZohoSalesOrderLineItem[];
+  packages: ZohoOrderPackage[];
 };
 /** Fetch every page of /items (leaf, non-composite) items. */
 export async function fetchAllItems(): Promise<ZohoItem[]> {
@@ -164,21 +174,20 @@ export async function fetchSalesOrdersInRange(
   }
   return all;
 }
-/** Fetch line items for a single sales order (used for per-product fill rate rollup). */
-export async function fetchSalesOrderLineItems(
-  salesorderId: string
-): Promise<ZohoSalesOrderLineItem[]> {
-  const data = await zohoGet<{ salesorder: { line_items: ZohoSalesOrderLineItem[] } }>(
-    `/salesorders/${salesorderId}`
-  );
-  return data.salesorder.line_items ?? [];
-}
-/** Fetch package (shipment) records for a single sales order — used for OTIF's "actual ship date". */
-export async function fetchPackagesForOrder(salesorderId: string): Promise<ZohoPackage[]> {
-  const data = await zohoGet<{ packages: ZohoPackage[] }>("/packages", {
-    salesorder_id: salesorderId,
-  });
-  return data.packages ?? [];
+/**
+ * Fetch a single sales order's detail — line items (for the per-product fill rate
+ * rollup) and packages (for OTIF's "actual ship date"), in one call. Both only exist
+ * on the detail endpoint, not the list endpoint, so this is one Zoho request either
+ * way; fetching them together halves the number of detail calls we used to make.
+ */
+export async function fetchSalesOrderDetail(salesorderId: string): Promise<ZohoSalesOrderDetail> {
+  const data = await zohoGet<{
+    salesorder: { line_items: ZohoSalesOrderLineItem[]; packages?: ZohoOrderPackage[] };
+  }>(`/salesorders/${salesorderId}`);
+  return {
+    lineItems: data.salesorder.line_items ?? [],
+    packages: data.salesorder.packages ?? [],
+  };
 }
 /** Simple concurrency-limited map, used to avoid hammering Zoho's rate limits. */
 export async function mapWithConcurrency<T, R>(
