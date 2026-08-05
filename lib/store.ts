@@ -38,15 +38,23 @@ export interface AssemblyFillRate {
  * partial shipments), OTIF is order-count-based and binary per order: an order either
  * shipped complete AND by its promised date, or it didn't. "On time" is only knowable
  * once we look at each order's actual package ship date vs. its promised shipment_date
- * (see fetchPackagesForOrder in lib/zoho.ts) — the order record itself only carries the
+ * (see fetchSalesOrderDetail in lib/zoho.ts) — the order record itself only carries the
  * promise, not the actual outcome.
+ *
+ * Orders with no `shipment_date` set in Zoho have nothing to measure "on time" against,
+ * so they're excluded from the rate entirely (not counted as a fail) — otifRate is
+ * otifCount / eligibleOrders, not totalOrders. excludedNoDueDate tracks how many orders
+ * got skipped this way, since a rising count is itself a signal CS needs to start
+ * setting the promised ship date on orders.
  */
 export interface OtifSummary {
-  totalOrders: number;
+  totalOrders: number; // all orders in the window, for context
+  eligibleOrders: number; // orders with a shipment_date set — the OTIF denominator
+  excludedNoDueDate: number; // orders skipped because shipment_date was blank
   inFullCount: number;
   onTimeCount: number;
   otifCount: number; // orders that were both in full AND on time
-  otifRate: number | null; // otifCount / totalOrders, null if totalOrders === 0
+  otifRate: number | null; // otifCount / eligibleOrders, null if eligibleOrders === 0
 }
 
 export interface FillRateSummary {
