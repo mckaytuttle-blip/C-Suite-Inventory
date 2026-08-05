@@ -2,6 +2,7 @@ import { findTrackedComponent, TRACKED_COMPONENTS } from "./components";
 import { todayKey } from "./dates";
 import {
   fetchAllItems,
+  fetchPurchaseOrderDetail,
   fetchSalesOrderDetail,
   fetchSalesOrdersInRange,
   mapWithConcurrency,
@@ -98,7 +99,7 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   const totalOrdered = orders.reduce((s, o) => s + (o.quantity ?? 0), 0);
   const totalShipped = orders.reduce((s, o) => s + (o.quantity_shipped ?? 0), 0);
 
-  const byAssemblyMap = new Map <
+  const byAssemblyMap = new Map
     string,
     { ordered: number; shipped: number; dropshippedUnits: number; dropshipPendingUnits: number }
   >();
@@ -171,11 +172,36 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   // Orders with no shipment_date on file have nothing to measure "on time" against —
   // rather than auto-failing them (which just penalizes missing CS data entry, not
   // actual lateness), they're excluded from the OTIF denominator entirely.
+  //
+  // Dropshipped orders are a special case: Zoho never creates a package record for
+  // them (confirmed live on PO-00504 / SO-01241 — is_received stays false forever,
+  // purchasereceives is always empty), so packages will be empty even for an order
+  // that shipped and was fully billed. Rather than auto-failing those too, fall back
+  // to a proxy completion date pulled from the linked PO (vendor bill date, or the
+  // PO's last-modified date if it hasn't been billed) — but only once every linked PO
+  // has actually closed, and only as a last resort when there's truly no package date.
+  const dropshipProxyDateByOrder = await mapWithConcurrency(orders, 6, async (order, i) => {
+    const { packages, purchaseOrders } = detailByOrder[i];
+    const hasRealShipDate = packages.some((p) => p.status !== "not_shipped" && p.date);
+    if (hasRealShipDate || purchaseOrders.length === 0) return null;
+    const allPosClosed = purchaseOrders.every((po) => po.order_status === "closed");
+    if (!allPosClosed) return null;
+
+    const poDetails = await Promise.all(
+      purchaseOrders.map((po) => fetchPurchaseOrderDetail(po.purchaseorder_id).catch(() => null))
+    );
+    const candidateDates = poDetails
+      .filter((d): d is Awaited<ReturnType<typeof fetchPurchaseOrderDetail>> => d !== null)
+      .flatMap((d) => (d.billDates.length > 0 ? d.billDates : d.lastModifiedDate ? [d.lastModifiedDate] : []));
+    return candidateDates.length > 0 ? candidateDates.sort().at(-1)! : null;
+  });
+
   let onTimeCount = 0;
   let inFullCount = 0;
   let otifCount = 0;
   let eligibleOrders = 0;
   let excludedNoDueDate = 0;
+  let dropshipProxyCount = 0;
 
   orders.forEach((order, i) => {
     const dueDate = order.shipment_date || null;
@@ -198,10 +224,13 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
     // If the order has multiple packages (partial shipments), it's only fully "on
     // time" once every package that went out did so by the promised date — use the
     // latest shipped-package date as the order's actual completion date.
-    const actualCompletionDate =
-      shippedPackageDates.length > 0
-        ? shippedPackageDates.sort().at(-1) ?? null
-        : null;
+    let actualCompletionDate =
+      shippedPackageDates.length > 0 ? shippedPackageDates.sort().at(-1) ?? null : null;
+
+    if (actualCompletionDate === null && dropshipProxyDateByOrder[i] !== null) {
+      actualCompletionDate = dropshipProxyDateByOrder[i];
+      dropshipProxyCount += 1;
+    }
 
     const onTime = inFull && actualCompletionDate !== null && actualCompletionDate <= dueDate;
 
@@ -228,6 +257,7 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
       onTimeCount,
       otifCount,
       otifRate: eligibleOrders > 0 ? otifCount / eligibleOrders : null,
+      dropshipProxyCount,
     },
   };
 
