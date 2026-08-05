@@ -120,6 +120,22 @@ export type ZohoLinkedPurchaseOrder = {
   billed_status: string;
   date: string;
 };
+
+/**
+ * Best-available "this got resolved on X date" signal for a dropship PO, pulled from
+ * the PO's own detail record. Dropship POs never go through Stat's warehouse, so
+ * `is_received` never flips true and there's no receive-date event to use (confirmed
+ * live on PO-00504 for SO-01241: is_received: false, purchasereceives: [] even though
+ * the order shipped and was fully billed). The closest thing to an independent,
+ * dated confirmation is the vendor bill — falling back to the PO's last-modified date
+ * if it hasn't been billed yet. This is a proxy, not a confirmed ship date, so treat
+ * it as lower-confidence than an actual package date.
+ */
+export type ZohoPurchaseOrderDetail = {
+  orderStatus: string;
+  billDates: string[];
+  lastModifiedDate: string | null; // YYYY-MM-DD
+};
 // Package record as it appears *nested inside a sales order's own detail response*
 // (salesorder.packages[]) — NOT from the standalone /packages list endpoint. That
 // standalone endpoint's salesorder_id query param is silently ignored by Zoho (it
@@ -216,6 +232,30 @@ export async function fetchSalesOrderDetail(salesorderId: string): Promise<ZohoS
     purchaseOrders: data.salesorder.purchaseorders ?? [],
   };
 }
+/**
+ * Fetch a purchase order's own detail — used only as a fallback when a dropshipped
+ * order has no package record to pull an actual ship date from (see
+ * ZohoPurchaseOrderDetail above for why). Only called for the specific orders that
+ * need it, not for every order, to keep this from adding a lot of extra API calls.
+ */
+export async function fetchPurchaseOrderDetail(
+  purchaseOrderId: string
+): Promise<ZohoPurchaseOrderDetail> {
+  const data = await zohoGet<{
+    purchaseorder: {
+      order_status: string;
+      bills?: { date: string }[];
+      last_modified_time?: string;
+    };
+  }>(`/purchaseorders/${purchaseOrderId}`);
+  const po = data.purchaseorder;
+  return {
+    orderStatus: po.order_status,
+    billDates: (po.bills ?? []).map((b) => b.date).filter(Boolean),
+    lastModifiedDate: po.last_modified_time ? po.last_modified_time.slice(0, 10) : null,
+  };
+}
+
 /** Simple concurrency-limited map, used to avoid hammering Zoho's rate limits. */
 export async function mapWithConcurrency<T, R>(
   items: T[],
