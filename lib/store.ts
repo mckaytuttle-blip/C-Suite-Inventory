@@ -55,6 +55,11 @@ export interface OtifSummary {
   onTimeCount: number;
   otifCount: number; // orders that were both in full AND on time
   otifRate: number | null; // otifCount / eligibleOrders, null if eligibleOrders === 0
+  // Count of eligible orders where "on time" had to be determined from a dropship
+  // PO's bill/last-modified date rather than a real package ship date, because Zoho
+  // never creates a package record for dropshipped fulfillment. Tracked separately
+  // so it's visible how often OTIF is leaning on this lower-confidence proxy.
+  dropshipProxyCount: number;
 }
 
 export interface FillRateSummary {
