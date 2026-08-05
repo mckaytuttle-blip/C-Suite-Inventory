@@ -2,8 +2,7 @@ import { findTrackedComponent, TRACKED_COMPONENTS } from "./components";
 import { todayKey } from "./dates";
 import {
   fetchAllItems,
-  fetchPackagesForOrder,
-  fetchSalesOrderLineItems,
+  fetchSalesOrderDetail,
   fetchSalesOrdersInRange,
   mapWithConcurrency,
 } from "./zoho";
@@ -87,8 +86,9 @@ const FULFILLED_STATUSES = new Set(["shipped", "fulfilled"]);
 /**
  * Pull every sales order dated in the most recently completed calendar month, roll up
  * ordered vs. shipped quantity per top-level (sellable/assembly) item, and compute
- * OTIF (On Time In Full) per order. Fetches SO line items *and* packages with limited
- * concurrency, since neither is available from the list endpoint.
+ * OTIF (On Time In Full) per order. Fetches each order's full detail (line items +
+ * packages together, one call) with limited concurrency, since neither is available
+ * from the list endpoint.
  */
 export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   const { start: windowStart, end: windowEnd, label: windowLabel } = getLastCompletedCalendarMonth();
@@ -100,17 +100,18 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
 
   const byAssemblyMap = new Map<string, { ordered: number; shipped: number }>();
 
-  const lineItemsByOrder = await mapWithConcurrency(orders, 6, async (order) => {
+  const detailByOrder = await mapWithConcurrency(orders, 6, async (order) => {
     try {
-      return await fetchSalesOrderLineItems(order.salesorder_id);
+      return await fetchSalesOrderDetail(order.salesorder_id);
     } catch {
       // If a single order detail call fails, skip it for the per-assembly breakdown
-      // rather than failing the whole snapshot — the aggregate totals above still hold.
-      return [];
+      // and OTIF rather than failing the whole snapshot — the aggregate totals above
+      // (which come from the list endpoint, not this call) still hold.
+      return { lineItems: [], packages: [] };
     }
   });
 
-  for (const lineItems of lineItemsByOrder) {
+  for (const { lineItems } of detailByOrder) {
     for (const li of lineItems) {
       const key = li.name;
       const entry = byAssemblyMap.get(key) ?? { ordered: 0, shipped: 0 };
@@ -132,16 +133,10 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   // OTIF — On Time In Full, computed per order (binary pass/fail, not unit-weighted
   // like Fill Rate above). "In Full" reuses the order-level quantity/quantity_shipped
   // we already have. "On Time" needs each order's actual completion date, which only
-  // exists on its package record(s) — the order's own `shipment_date` field is the
-  // *promised/due* date, not the actual one.
-  const packagesByOrder = await mapWithConcurrency(orders, 6, async (order) => {
-    try {
-      return await fetchPackagesForOrder(order.salesorder_id);
-    } catch {
-      return [];
-    }
-  });
-
+  // exists on its *own* nested packages array (detailByOrder[i].packages) — the
+  // standalone /packages list endpoint's salesorder_id filter is silently ignored by
+  // Zoho, so don't be tempted to call that instead. The order's own `shipment_date`
+  // field is the *promised/due* date, not the actual one.
   let onTimeCount = 0;
   let inFullCount = 0;
   let otifCount = 0;
@@ -149,9 +144,13 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   orders.forEach((order, i) => {
     const inFull = (order.quantity_shipped ?? 0) >= (order.quantity ?? 0) && (order.quantity ?? 0) > 0;
 
-    const packages = packagesByOrder[i];
+    const packages = detailByOrder[i].packages;
+    // Packages progress through statuses beyond "shipped" (e.g. "delivered") as
+    // tracking updates come in — only "not_shipped" means it truly hasn't gone out
+    // yet, so treat anything else as having a real ship date rather than matching
+    // the literal string "shipped" (which misses "delivered" and undercounts OTIF).
     const shippedPackageDates = packages
-      .filter((p) => p.status === "shipped" && p.date)
+      .filter((p) => p.status !== "not_shipped" && p.date)
       .map((p) => p.date);
     // If the order has multiple packages (partial shipments), it's only fully "on
     // time" once every package that went out did so by the promised date — use the
