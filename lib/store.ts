@@ -23,6 +23,14 @@ export interface AssemblyFillRate {
   ordered: number;
   shipped: number;
   fillRate: number | null; // null if ordered === 0
+  // Units within `shipped` above that were fulfilled via drop-shipment (Zoho tracks
+  // these separately from quantity_shipped on the line item, so they're folded in
+  // here once the linked dropship PO has closed) — optional so pre-migration
+  // summaries don't break at read time.
+  dropshippedUnits?: number;
+  // Units that went out as a dropship but whose PO hasn't closed in Zoho yet —
+  // held back from `shipped` until confirmed, so this fill rate isn't overstated.
+  dropshipPendingUnits?: number;
 }
 
 /**
