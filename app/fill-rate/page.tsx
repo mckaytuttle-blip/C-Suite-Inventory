@@ -91,9 +91,16 @@ export default async function FillRateDetailPage() {
                 {pct(otif.otifRate)}
               </div>
               <p className="definition">
-                {otif.otifCount} of {otif.totalOrders} orders in {windowLabel} shipped complete and
-                by their promised ship date. {otif.inFullCount} shipped complete;{" "}
+                {otif.otifCount} of {otif.eligibleOrders} orders in {windowLabel} with a promised
+                ship date shipped complete and on time. {otif.inFullCount} shipped complete;{" "}
                 {otif.onTimeCount} shipped on time.
+                {otif.excludedNoDueDate > 0 && (
+                  <>
+                    {" "}
+                    {otif.excludedNoDueDate} order{otif.excludedNoDueDate === 1 ? "" : "s"} excluded —
+                    no promised ship date on file.
+                  </>
+                )}
               </p>
             </>
           ) : (
@@ -111,7 +118,13 @@ export default async function FillRateDetailPage() {
           Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in{" "}
           {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
           day to day since the snapshot job started tracking it — it updates daily until the
-          month&apos;s numbers are final, then carries over once the next month begins.
+          month&apos;s numbers are final, then carries over once the next month begins. Products
+          tagged <span className="dropship-tag">Dropshipped</span> had units fulfilled through a
+          drop-shipped PO rather than Stat&apos;s own warehouse — Zoho doesn&apos;t record those as
+          &quot;shipped&quot; on the line item directly, so they&apos;re folded in here once the PO
+          closes. A <span className="dropship-tag pending">Dropship PO open</span> tag means units
+          went out as a dropship but the linked PO hasn&apos;t closed in Zoho yet, so they&apos;re
+          held out of the shipped count until confirmed.
         </p>
         <table>
           <thead>
@@ -125,7 +138,25 @@ export default async function FillRateDetailPage() {
           <tbody>
             {sorted.map((a) => (
               <tr key={a.name}>
-                <td className="name">{a.name}</td>
+                <td className="name">
+                  {a.name}
+                  {!!a.dropshippedUnits && (
+                    <span
+                      className="dropship-tag"
+                      title={`${a.dropshippedUnits} unit(s) shipped via a closed dropship PO this month — counted as shipped even though Zoho's line-item quantity_shipped shows 0 for these.`}
+                    >
+                      Dropshipped
+                    </span>
+                  )}
+                  {!!a.dropshipPendingUnits && (
+                    <span
+                      className="dropship-tag pending"
+                      title={`${a.dropshipPendingUnits} unit(s) went out as a dropship this month but the linked PO hasn't closed in Zoho yet — not yet counted as shipped.`}
+                    >
+                      Dropship PO open
+                    </span>
+                  )}
+                </td>
                 <td className="numeric">
                   <span className="bar-bg">
                     <span
@@ -155,6 +186,8 @@ export default async function FillRateDetailPage() {
         completed calendar month. OTIF = the share of those same orders that shipped both complete
         and by their promised ship date — a stricter, order-count-based measure (no partial
         credit) that surfaces orders shipped late even if the units eventually all went out.
+        Orders with no promised ship date on file are excluded from OTIF rather than counted as
+        late, since there&apos;s nothing to measure against.
       </footer>
     </div>
   );
