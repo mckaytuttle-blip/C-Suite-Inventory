@@ -101,6 +101,14 @@ export default async function FillRateDetailPage() {
                     no promised ship date on file.
                   </>
                 )}
+                {otif.dropshipProxyCount > 0 && (
+                  <>
+                    {" "}
+                    {otif.dropshipProxyCount} order{otif.dropshipProxyCount === 1 ? "" : "s"} had no
+                    package record (dropshipped) — on-time status estimated from the linked
+                    purchase order&apos;s bill/close date instead.
+                  </>
+                )}
               </p>
             </>
           ) : (
@@ -187,7 +195,10 @@ export default async function FillRateDetailPage() {
         and by their promised ship date — a stricter, order-count-based measure (no partial
         credit) that surfaces orders shipped late even if the units eventually all went out.
         Orders with no promised ship date on file are excluded from OTIF rather than counted as
-        late, since there&apos;s nothing to measure against.
+        late, since there&apos;s nothing to measure against. Dropshipped orders never get a
+        warehouse package record in Zoho, so their on-time status is estimated from the linked
+        purchase order&apos;s bill or close date instead of an actual ship date — a lower-confidence
+        stand-in, flagged above whenever it&apos;s used.
       </footer>
     </div>
   );
