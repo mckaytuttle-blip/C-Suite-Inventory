@@ -99,7 +99,7 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   const totalOrdered = orders.reduce((s, o) => s + (o.quantity ?? 0), 0);
   const totalShipped = orders.reduce((s, o) => s + (o.quantity_shipped ?? 0), 0);
 
-  const byAssemblyMap = new Map
+  const byAssemblyMap = new Map <
     string,
     { ordered: number; shipped: number; dropshippedUnits: number; dropshipPendingUnits: number }
   >();
