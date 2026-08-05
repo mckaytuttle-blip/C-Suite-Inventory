@@ -98,7 +98,10 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   const totalOrdered = orders.reduce((s, o) => s + (o.quantity ?? 0), 0);
   const totalShipped = orders.reduce((s, o) => s + (o.quantity_shipped ?? 0), 0);
 
-  const byAssemblyMap = new Map<string, { ordered: number; shipped: number }>();
+  const byAssemblyMap = new Map
+    string,
+    { ordered: number; shipped: number; dropshippedUnits: number; dropshipPendingUnits: number }
+  >();
 
   const detailByOrder = await mapWithConcurrency(orders, 6, async (order) => {
     try {
@@ -107,16 +110,41 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
       // If a single order detail call fails, skip it for the per-assembly breakdown
       // and OTIF rather than failing the whole snapshot — the aggregate totals above
       // (which come from the list endpoint, not this call) still hold.
-      return { lineItems: [], packages: [] };
+      return { lineItems: [], packages: [], purchaseOrders: [] };
     }
   });
 
-  for (const { lineItems } of detailByOrder) {
+  for (const { lineItems, purchaseOrders } of detailByOrder) {
+    // Zoho links the dropship PO(s) to the order, not to the specific line item —
+    // there's no per-line "is this item's PO closed" field, so we treat every
+    // dropshipped line on this order as confirmed once every linked PO has closed.
+    // (In practice each dropshipped order we've seen carries exactly one PO, so this
+    // doesn't currently lose any precision.)
+    const dropshipPoClosed =
+      purchaseOrders.length > 0 && purchaseOrders.every((po) => po.order_status === "closed");
+
     for (const li of lineItems) {
       const key = li.name;
-      const entry = byAssemblyMap.get(key) ?? { ordered: 0, shipped: 0 };
+      const entry =
+        byAssemblyMap.get(key) ?? { ordered: 0, shipped: 0, dropshippedUnits: 0, dropshipPendingUnits: 0 };
+      const dropshipped = li.quantity_dropshipped ?? 0;
+
       entry.ordered += li.quantity ?? 0;
-      entry.shipped += li.quantity_shipped ?? 0;
+
+      if (dropshipped > 0 && dropshipPoClosed) {
+        // Confirmed dropship — fold the dropshipped units into "shipped" since Zoho
+        // never puts them in quantity_shipped itself.
+        entry.shipped += (li.quantity_shipped ?? 0) + dropshipped;
+        entry.dropshippedUnits += dropshipped;
+      } else if (dropshipped > 0) {
+        // Dropship PO hasn't closed yet — don't credit as shipped until it does,
+        // but track it so the table can note why this product looks short.
+        entry.shipped += li.quantity_shipped ?? 0;
+        entry.dropshipPendingUnits += dropshipped;
+      } else {
+        entry.shipped += li.quantity_shipped ?? 0;
+      }
+
       byAssemblyMap.set(key, entry);
     }
   }
@@ -127,6 +155,8 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
       ordered: v.ordered,
       shipped: v.shipped,
       fillRate: v.ordered > 0 ? v.shipped / v.ordered : null,
+      dropshippedUnits: v.dropshippedUnits,
+      dropshipPendingUnits: v.dropshipPendingUnits,
     }))
     .sort((a, b) => b.ordered - a.ordered);
 
@@ -137,11 +167,24 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
   // standalone /packages list endpoint's salesorder_id filter is silently ignored by
   // Zoho, so don't be tempted to call that instead. The order's own `shipment_date`
   // field is the *promised/due* date, not the actual one.
+  //
+  // Orders with no shipment_date on file have nothing to measure "on time" against —
+  // rather than auto-failing them (which just penalizes missing CS data entry, not
+  // actual lateness), they're excluded from the OTIF denominator entirely.
   let onTimeCount = 0;
   let inFullCount = 0;
   let otifCount = 0;
+  let eligibleOrders = 0;
+  let excludedNoDueDate = 0;
 
   orders.forEach((order, i) => {
+    const dueDate = order.shipment_date || null;
+    if (!dueDate) {
+      excludedNoDueDate += 1;
+      return;
+    }
+    eligibleOrders += 1;
+
     const inFull = (order.quantity_shipped ?? 0) >= (order.quantity ?? 0) && (order.quantity ?? 0) > 0;
 
     const packages = detailByOrder[i].packages;
@@ -160,9 +203,7 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
         ? shippedPackageDates.sort().at(-1) ?? null
         : null;
 
-    const dueDate = order.shipment_date || null;
-    const onTime =
-      inFull && actualCompletionDate !== null && dueDate !== null && actualCompletionDate <= dueDate;
+    const onTime = inFull && actualCompletionDate !== null && actualCompletionDate <= dueDate;
 
     if (inFull) inFullCount += 1;
     if (onTime) onTimeCount += 1;
@@ -181,10 +222,12 @@ export async function runFillRateSnapshot(): Promise<FillRateSummary> {
     byAssembly,
     otif: {
       totalOrders: orders.length,
+      eligibleOrders,
+      excludedNoDueDate,
       inFullCount,
       onTimeCount,
       otifCount,
-      otifRate: orders.length > 0 ? otifCount / orders.length : null,
+      otifRate: eligibleOrders > 0 ? otifCount / eligibleOrders : null,
     },
   };
 
