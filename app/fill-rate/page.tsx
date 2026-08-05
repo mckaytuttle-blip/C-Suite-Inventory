@@ -2,16 +2,13 @@ import Sparkline from "@/components/Sparkline";
 import { computeFillRateTrend, FillRateTrend, FillRateView, viewFillRate } from "@/lib/kpis";
 import { pct, rateTone, toneColor } from "@/lib/format";
 import { getFillRateSummary, getLastSnapshotRun } from "@/lib/store";
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
 export default async function FillRateDetailPage() {
   let fillRate: FillRateView | null | undefined;
   let trend: FillRateTrend | undefined;
   let lastRun: string | null = null;
   let error: string | null = null;
-
   try {
     const summaryRaw = await getFillRateSummary();
     fillRate = viewFillRate(summaryRaw);
@@ -23,7 +20,6 @@ export default async function FillRateDetailPage() {
   } catch (err: any) {
     error = err?.message ?? String(err);
   }
-
   if (error || !fillRate) {
     return (
       <div className="page">
@@ -44,12 +40,17 @@ export default async function FillRateDetailPage() {
       </div>
     );
   }
-
   const sorted = [...fillRate.byAssembly].sort((a, b) => {
     const av = a.fillRate ?? 1;
     const bv = b.fillRate ?? 1;
     return av - bv;
   });
+
+  // Fill Rate's reporting period switched from a rolling 30-day window to the last
+  // fully completed calendar month — windowLabel carries the human-readable name
+  // ("July 2026"). Older stored summaries saved before this switch won't have it yet.
+  const windowLabel = fillRate.windowLabel ?? `${fillRate.windowStart} → ${fillRate.windowEnd}`;
+  const otif = fillRate.otif;
 
   return (
     <div className="page">
@@ -57,7 +58,7 @@ export default async function FillRateDetailPage() {
         <div>
           <h1>Fill Rate Detail</h1>
           <p className="subtitle">
-            {fillRate.windowStart} → {fillRate.windowEnd} · {fillRate.orderCount} sales orders
+            {windowLabel} · {fillRate.orderCount} sales orders
           </p>
         </div>
         <p className="updated">
@@ -73,7 +74,7 @@ export default async function FillRateDetailPage() {
           </div>
           <p className="definition">
             {fillRate.totalShipped.toLocaleString()} of {fillRate.totalOrdered.toLocaleString()}{" "}
-            units shipped across {fillRate.orderCount} orders in the trailing 30 days.
+            units shipped across {fillRate.orderCount} orders in {windowLabel}.
           </p>
           {trend && (
             <div style={{ marginTop: 12 }}>
@@ -81,14 +82,36 @@ export default async function FillRateDetailPage() {
             </div>
           )}
         </div>
+
+        <div className="kpi-card">
+          <div className="label">OTIF (On Time In Full)</div>
+          {otif ? (
+            <>
+              <div className="value" style={{ color: toneColor(rateTone(otif.otifRate)) }}>
+                {pct(otif.otifRate)}
+              </div>
+              <p className="definition">
+                {otif.otifCount} of {otif.totalOrders} orders in {windowLabel} shipped complete and
+                by their promised ship date. {otif.inFullCount} shipped complete;{" "}
+                {otif.onTimeCount} shipped on time.
+              </p>
+            </>
+          ) : (
+            <p className="definition" style={{ marginTop: 8 }}>
+              OTIF hasn&apos;t been computed yet for this period — it&apos;ll appear after the next
+              scheduled snapshot runs.
+            </p>
+          )}
+        </div>
       </div>
 
       <section className="panel">
         <h2>Fill rate by product</h2>
         <p className="panel-sub">
-          Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in
-          the trailing 30 days; the trend line shows how each product&apos;s rolling fill rate has
-          moved day to day since the snapshot job started.
+          Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in{" "}
+          {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
+          day to day since the snapshot job started tracking it — it updates daily until the
+          month&apos;s numbers are final, then carries over once the next month begins.
         </p>
         <table>
           <thead>
@@ -128,9 +151,10 @@ export default async function FillRateDetailPage() {
       </section>
 
       <footer className="page-footer">
-        Fill Rate = units shipped ÷ units ordered on sales orders dated in the trailing 30 days.
-        Trend lines accumulate one point per day starting from when the daily snapshot job first
-        ran — they&apos;ll be sparse until enough days have passed.
+        Fill Rate = units shipped ÷ units ordered on sales orders dated in the most recently
+        completed calendar month. OTIF = the share of those same orders that shipped both complete
+        and by their promised ship date — a stricter, order-count-based measure (no partial
+        credit) that surfaces orders shipped late even if the units eventually all went out.
       </footer>
     </div>
   );
