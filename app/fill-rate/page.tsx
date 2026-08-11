@@ -123,16 +123,9 @@ export default async function FillRateDetailPage() {
       <section className="panel">
         <h2>Fill rate by product</h2>
         <p className="panel-sub">
-          Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in{" "}
+          Sorted worst-first. Ordered/shipped totals from sales order line items in{" "}
           {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
-          day to day since the snapshot job started tracking it — it updates daily until the
-          month&apos;s numbers are final, then carries over once the next month begins. Products
-          tagged <span className="dropship-tag">Dropshipped</span> had units fulfilled through a
-          drop-shipped PO rather than Stat&apos;s own warehouse — Zoho doesn&apos;t record those as
-          &quot;shipped&quot; on the line item directly, so they&apos;re folded in here once the PO
-          closes. A <span className="dropship-tag pending">Dropship PO open</span> tag means units
-          went out as a dropship but the linked PO hasn&apos;t closed in Zoho yet, so they&apos;re
-          held out of the shipped count until confirmed.
+          from day to day.
         </p>
         <table>
           <thead>
@@ -192,13 +185,7 @@ export default async function FillRateDetailPage() {
       <footer className="page-footer">
         Fill Rate = units shipped ÷ units ordered on sales orders dated in the most recently
         completed calendar month. OTIF = the share of those same orders that shipped both complete
-        and by their promised ship date — a stricter, order-count-based measure (no partial
-        credit) that surfaces orders shipped late even if the units eventually all went out.
-        Orders with no promised ship date on file are excluded from OTIF rather than counted as
-        late, since there&apos;s nothing to measure against. Dropshipped orders never get a
-        warehouse package record in Zoho, so their on-time status is estimated from the linked
-        purchase order&apos;s bill or close date instead of an actual ship date — a lower-confidence
-        stand-in, flagged above whenever it&apos;s used.
+        and by their promised ship date. 
       </footer>
     </div>
   );
