@@ -60,7 +60,6 @@ export default async function OverviewPage() {
       <div className="page-header">
         <div>
           <h1>Inventory Overview</h1>
-          <p className="subtitle">A Quick Look into Inventory Health</p>
         </div>
         <p className="updated">
           {lastRun ? `Last updated ${new Date(lastRun).toLocaleString()}` : "Not yet run"}
