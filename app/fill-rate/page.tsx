@@ -58,7 +58,7 @@ export default async function FillRateDetailPage() {
   // extra sentences onto the card every time one of those cases applies.
   const otifTooltip = otif
     ? [
-        "For the most recently completed calendar month.",
+        "For the most recently completed calendar month",
         otif.excludedNoDueDate > 0
           ? `${otif.excludedNoDueDate} order${otif.excludedNoDueDate === 1 ? "" : "s"} had no promised ship date on file, so ${otif.excludedNoDueDate === 1 ? "it was" : "they were"} excluded rather than counted as late.`
           : null,
