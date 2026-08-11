@@ -137,16 +137,9 @@ export default async function FillRateDetailPage() {
       <section className="panel">
         <h2>Fill rate by product</h2>
         <p className="panel-sub">
-          Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in{" "}
+          Sorted worst-first. Ordered/shipped totals are from sales order line items in{" "}
           {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
-          day to day since the snapshot job started tracking it — it updates daily until the
-          month&apos;s numbers are final, then carries over once the next month begins. Products
-          tagged <span className="dropship-tag">Dropshipped</span> had units fulfilled through a
-          drop-shipped PO rather than Stat&apos;s own warehouse — Zoho doesn&apos;t record those as
-          &quot;shipped&quot; on the line item directly, so they&apos;re folded in here once the PO
-          closes. A <span className="dropship-tag pending">Dropship PO open</span> tag means units
-          went out as a dropship but the linked PO hasn&apos;t closed in Zoho yet, so they&apos;re
-          held out of the shipped count until confirmed.
+          day to day and updates daily until the month&apos;s numbers are final, then carries over once the next month begins.
         </p>
         <table>
           <thead>
