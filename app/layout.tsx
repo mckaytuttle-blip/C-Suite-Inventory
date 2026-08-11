@@ -6,7 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Stat CareOps — Inventory Dashboard",
   description: "Inventory KPIs, pulled live from data within Zoho Inventory.",
-  icons: { icon: "/stat logo.png" },
+  icons: { icon: "/Stat S.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
