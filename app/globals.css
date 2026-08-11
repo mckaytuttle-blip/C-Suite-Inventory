@@ -372,3 +372,25 @@ footer.page-footer {
   margin-top: 40px;
   line-height: 1.6;
 }
+/* ---------- Site footer (app/layout.tsx, appears on every page) ---------- */
+.site-footer {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--panel-border);
+}
+.site-footer .site-footer-brand {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.site-footer .site-footer-copyright {
+  font-size: 12px;
+  color: var(--muted-dim);
+}
