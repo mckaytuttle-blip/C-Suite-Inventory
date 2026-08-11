@@ -52,6 +52,23 @@ export default async function FillRateDetailPage() {
   const windowLabel = fillRate.windowLabel ?? `${fillRate.windowStart} → ${fillRate.windowEnd}`;
   const otif = fillRate.otif;
 
+  // The visible OTIF line stays to one sentence; anything conditional (exclusions,
+  // the dropship proxy-date fallback) moves into this tooltip instead of stacking
+  // extra sentences onto the card every time one of those cases applies.
+  const otifTooltip = otif
+    ? [
+        "OTIF = orders that shipped both complete and by their promised ship date, for the most recently completed calendar month.",
+        otif.excludedNoDueDate > 0
+          ? `${otif.excludedNoDueDate} order${otif.excludedNoDueDate === 1 ? "" : "s"} had no promised ship date on file, so ${otif.excludedNoDueDate === 1 ? "it was" : "they were"} excluded rather than counted as late.`
+          : null,
+        otif.dropshipProxyCount > 0
+          ? `${otif.dropshipProxyCount} order${otif.dropshipProxyCount === 1 ? "" : "s"} ${otif.dropshipProxyCount === 1 ? "was" : "were"} dropshipped with no Zoho package record — on-time status estimated from the linked purchase order's bill/close date instead.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : "";
+
   return (
     <div className="page">
       <div className="page-header">
@@ -84,31 +101,22 @@ export default async function FillRateDetailPage() {
         </div>
 
         <div className="kpi-card">
-          <div className="label">OTIF (On Time In Full)</div>
+          <div className="label">
+            OTIF (On Time In Full)
+            {otif && (
+              <span className="info-icon" title={otifTooltip}>
+                i
+              </span>
+            )}
+          </div>
           {otif ? (
             <>
               <div className="value" style={{ color: toneColor(rateTone(otif.otifRate)) }}>
                 {pct(otif.otifRate)}
               </div>
               <p className="definition">
-                {otif.otifCount} of {otif.eligibleOrders} orders in {windowLabel} with a promised
-                ship date shipped complete and on time. {otif.inFullCount} shipped complete;{" "}
-                {otif.onTimeCount} shipped on time.
-                {otif.excludedNoDueDate > 0 && (
-                  <>
-                    {" "}
-                    {otif.excludedNoDueDate} order{otif.excludedNoDueDate === 1 ? "" : "s"} excluded —
-                    no promised ship date on file.
-                  </>
-                )}
-                {otif.dropshipProxyCount > 0 && (
-                  <>
-                    {" "}
-                    {otif.dropshipProxyCount} order{otif.dropshipProxyCount === 1 ? "" : "s"} had no
-                    package record (dropshipped) — on-time status estimated from the linked
-                    purchase order&apos;s bill/close date instead.
-                  </>
-                )}
+                {otif.otifCount} of {otif.eligibleOrders} eligible orders shipped complete and on
+                time this month.
               </p>
             </>
           ) : (
@@ -123,9 +131,16 @@ export default async function FillRateDetailPage() {
       <section className="panel">
         <h2>Fill rate by product</h2>
         <p className="panel-sub">
-          Sorted worst-first. Ordered/shipped totals from sales order line items in{" "}
+          Sorted worst-first. Ordered/shipped totals are rolled up from sales order line items in{" "}
           {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
-          from day to day.
+          day to day since the snapshot job started tracking it — it updates daily until the
+          month&apos;s numbers are final, then carries over once the next month begins. Products
+          tagged <span className="dropship-tag">Dropshipped</span> had units fulfilled through a
+          drop-shipped PO rather than Stat&apos;s own warehouse — Zoho doesn&apos;t record those as
+          &quot;shipped&quot; on the line item directly, so they&apos;re folded in here once the PO
+          closes. A <span className="dropship-tag pending">Dropship PO open</span> tag means units
+          went out as a dropship but the linked PO hasn&apos;t closed in Zoho yet, so they&apos;re
+          held out of the shipped count until confirmed.
         </p>
         <table>
           <thead>
@@ -183,9 +198,10 @@ export default async function FillRateDetailPage() {
       </section>
 
       <footer className="page-footer">
-        Fill Rate = units shipped ÷ units ordered on sales orders dated in the most recently
-        completed calendar month. OTIF = the share of those same orders that shipped both complete
-        and by their promised ship date. 
+        Fill Rate = units shipped ÷ units ordered, unit-weighted. OTIF = orders shipped complete
+        and on time, a stricter order-count-based measure. Both cover the most recently completed
+        calendar month — hover the <span className="info-icon" title={otifTooltip}>i</span> next
+        to OTIF for exclusions and estimates that applied this month.
       </footer>
     </div>
   );
