@@ -1,3 +1,4 @@
+// app/page.tsx
 import KpiCard from "@/components/KpiCard";
 import { computeInStockRateSummary, InStockRateSummary, viewFillRate, FillRateView } from "@/lib/kpis";
 import { pct } from "@/lib/format";
@@ -101,12 +102,6 @@ export default async function OverviewPage() {
           }
         />
       </div>
-      <footer className="page-footer">
-        In-Stock Rate refreshes daily over a trailing 30-day window. Fill Rate and OTIF report on
-        the most recently completed calendar month, refreshed daily until that month&apos;s
-        numbers are final. Click either card above for the full breakdown, trends, and underlying
-        data.
-      </footer>
     </div>
   );
 }
