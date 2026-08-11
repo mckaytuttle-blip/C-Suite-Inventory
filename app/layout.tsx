@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Stat CareOps — Inventory Dashboard",
-  description: "In-Stock Rate & Fill Rate KPIs, pulled live from Zoho Inventory.",
+  description: "Inventory KPIs, pulled live from data within Zoho Inventory.",
   icons: { icon: "/stat-logo.png" },
 };
 
