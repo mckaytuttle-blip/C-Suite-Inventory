@@ -4,7 +4,7 @@ import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stat Medical — Inventory Dashboard",
+  title: "Stat CareOps — Inventory Dashboard",
   description: "In-Stock Rate & Fill Rate KPIs, pulled live from Zoho Inventory.",
   icons: { icon: "/stat-logo.png" },
 };
