@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import NavBar from "@/components/NavBar";
+import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Stat Medical — Inventory Dashboard",
   description: "In-Stock Rate & Fill Rate KPIs, pulled live from Zoho Inventory.",
-  icons: { icon: "/stat logo.png" },
+  icons: { icon: "/stat-logo.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <NavBar />
         {children}
+        <Footer />
       </body>
     </html>
   );
