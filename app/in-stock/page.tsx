@@ -1,3 +1,4 @@
+// app/in-stock/page.tsx
 import Heatmap from "@/components/Heatmap";
 import { computeInStockRateSummary, InStockRateSummary } from "@/lib/kpis";
 import { pct, rateTone, toneColor } from "@/lib/format";
@@ -118,12 +119,6 @@ export default async function InStockDetailPage() {
           </tbody>
         </table>
       </section>
-
-      <footer className="page-footer">
-        In-Stock Rate = % of days in the window a component showed available stock &gt; 0 in
-        Zoho. Days before this dashboard&apos;s daily snapshot job started may be backfilled from
-        the manually-maintained stockout log rather than a live Zoho read — see the README.
-      </footer>
     </div>
   );
 }
