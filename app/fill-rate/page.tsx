@@ -104,7 +104,12 @@ export default async function FillRateDetailPage() {
           <div className="label">
             OTIF (On Time In Full)
             {otif && (
-              <span className="info-icon" title={otifTooltip}>
+              <span
+                className="info-icon"
+                data-tooltip={otifTooltip}
+                aria-label={otifTooltip}
+                tabIndex={0}
+              >
                 i
               </span>
             )}
@@ -200,8 +205,11 @@ export default async function FillRateDetailPage() {
       <footer className="page-footer">
         Fill Rate = units shipped ÷ units ordered, unit-weighted. OTIF = orders shipped complete
         and on time, a stricter order-count-based measure. Both cover the most recently completed
-        calendar month — hover the <span className="info-icon" title={otifTooltip}>i</span> next
-        to OTIF for exclusions and estimates that applied this month.
+        calendar month — hover the{" "}
+        <span className="info-icon" data-tooltip={otifTooltip} aria-label={otifTooltip} tabIndex={0}>
+          i
+        </span>{" "}
+        next to OTIF for exclusions and estimates that applied this month.
       </footer>
     </div>
   );
