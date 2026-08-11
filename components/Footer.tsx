@@ -8,7 +8,7 @@ export default function Footer() {
     <footer className="site-footer">
       <span className="site-footer-brand">Stat</span>
       <span className="site-footer-copyright">
-        &copy; {year} Stat Medical. All rights reserved.
+        &copy; {year} Stat. All rights reserved.
       </span>
     </footer>
   );
