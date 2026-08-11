@@ -128,12 +128,15 @@ a {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius);
   padding: 26px;
-  overflow: hidden;
+  /* overflow: hidden removed — it was clipping the .info-icon hover tooltip since
+     the tooltip is a descendant of this card. border-radius: inherit on ::before
+     below keeps the gradient overlay's corners rounded without needing this. */
 }
 .kpi-card::before {
   content: "";
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   background: var(--brand-gradient);
   opacity: 0.06;
   pointer-events: none;
@@ -271,8 +274,9 @@ td.numeric {
   background: rgba(251, 115, 115, 0.14);
   color: var(--bad);
 }
-/* ---------- Info tooltip (native title attribute, no JS) ---------- */
+/* ---------- Info tooltip (CSS-only popover, no JS) ---------- */
 .info-icon {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -290,6 +294,31 @@ td.numeric {
   vertical-align: middle;
   text-transform: none;
   letter-spacing: normal;
+}
+.info-icon:hover::after,
+.info-icon:focus::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  max-width: 70vw;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--panel-hover);
+  border: 1px solid var(--panel-border-strong);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  z-index: 30;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 /* ---------- Rate bars ---------- */
 .bar-bg {
