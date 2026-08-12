@@ -1,5 +1,6 @@
 import { findTrackedComponent, TRACKED_COMPONENTS } from "./components";
-import { todayKey } from "./dates";
+import { daysBetweenKeys, lastNDateKeys, todayKey } from "./dates";
+import { computeLeafMovement } from "./leaf-movement";
 import {
   fetchAllItems,
   fetchPurchaseOrderDetail,
@@ -12,9 +13,14 @@ import {
   ComponentSnapshot,
   ComponentSnapshotEntry,
   FillRateSummary,
+  getComponentSnapshots,
+  InventoryHealthEntry,
+  InventoryHealthSummary,
   saveComponentSnapshot,
   saveFillRateHistoryPoint,
   saveFillRateSummary,
+  saveInventoryHealthSummary,
+  setLastAgingRun,
   setLastSnapshotRun,
 } from "./store";
 
@@ -289,4 +295,139 @@ export async function runDailySnapshot(): Promise<{
   ]);
   await setLastSnapshotRun(new Date().toISOString());
   return { componentSnapshot, fillRateSummary };
+}
+
+/**
+ * Aging/Dead Stock + Inventory Turnover for the 83 tracked components. This is a
+ * heavier pull than runDailySnapshot (a full composite BOM flatten plus sales order
+ * detail calls across a 180-day window, see lib/leaf-movement.ts) — it runs on its
+ * own cron route (/api/cron/aging) rather than being folded into the fast daily
+ * snapshot, so a slow or rate-limited Zoho response here can't hold up In-Stock Rate
+ * or Fill Rate.
+ *
+ * Average inventory for Turnover reuses the *existing* daily component snapshots
+ * (ComponentSnapshot, collected once a day for In-Stock Rate) rather than pulling
+ * more from Zoho — only "live" (non-backfill) days carry a real stockOnHand number,
+ * so days before this dashboard existed are excluded rather than treated as 0.
+ */
+export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSummary> {
+  const movement = await computeLeafMovement(180);
+  const today = todayKey();
+
+  const last90Dates = lastNDateKeys(90);
+  const snapshots90 = await getComponentSnapshots(last90Dates);
+
+  const sumStockByComponent = new Map<string, number>();
+  const liveDaysByComponent = new Map<string, number>();
+  for (const snap of snapshots90) {
+    if (!snap || snap.source !== "live") continue;
+    for (const tc of TRACKED_COMPONENTS) {
+      const entry = snap.components[tc.name];
+      if (!entry || !entry.matched || entry.stockOnHand === null) continue;
+      sumStockByComponent.set(tc.name, (sumStockByComponent.get(tc.name) ?? 0) + entry.stockOnHand);
+      liveDaysByComponent.set(tc.name, (liveDaysByComponent.get(tc.name) ?? 0) + 1);
+    }
+  }
+
+  const tierByName = new Map(TRACKED_COMPONENTS.map((tc) => [tc.name, tc.tier]));
+
+  let totalInventoryValue = 0;
+  let deadStockValue90 = 0;
+  let deadStockValue180 = 0;
+  let deadStockCount90 = 0;
+  let deadStockCount180 = 0;
+  let componentsMissingCost = 0;
+  let componentsUnmatched = 0;
+  let sumAnnualizedCogs = 0;
+  let sumAvgInventoryValue = 0;
+
+  const byComponent: InventoryHealthEntry[] = movement.byComponent.map((m) => {
+    if (!m.matched) componentsUnmatched += 1;
+    if (m.matched && m.purchaseRate === null) componentsMissingCost += 1;
+
+    const valueAtCost =
+      m.stockOnHand !== null && m.purchaseRate !== null ? m.stockOnHand * m.purchaseRate : null;
+    if (valueAtCost !== null) totalInventoryValue += valueAtCost;
+
+    // null lastMovementDate means no movement was found anywhere in the 180-day
+    // lookback — beyond that we don't actually know how old it is, so it's reported
+    // as "no movement in 180+ days" rather than a specific (and unverified) day count.
+    const daysSinceLastMovement = m.lastMovementDate ? daysBetweenKeys(m.lastMovementDate, today) : null;
+    const noMovement90 = daysSinceLastMovement === null || daysSinceLastMovement > 90;
+    const noMovement180 = daysSinceLastMovement === null;
+
+    if (valueAtCost !== null && noMovement90) {
+      deadStockValue90 += valueAtCost;
+      deadStockCount90 += 1;
+    }
+    if (valueAtCost !== null && noMovement180) {
+      deadStockValue180 += valueAtCost;
+      deadStockCount180 += 1;
+    }
+
+    const daysOfSnapshotData90 = liveDaysByComponent.get(m.name) ?? 0;
+    const avgStockOnHand90 =
+      daysOfSnapshotData90 > 0 ? (sumStockByComponent.get(m.name) ?? 0) / daysOfSnapshotData90 : null;
+    const cogs90 = m.purchaseRate !== null ? m.unitsConsumed90 * m.purchaseRate : null;
+    const avgInventoryValue90 =
+      avgStockOnHand90 !== null && m.purchaseRate !== null ? avgStockOnHand90 * m.purchaseRate : null;
+    // Annualize the 90-day window (x 365/90) rather than requiring a full year of
+    // Zoho history up front — turnover becomes more precise as more days of live
+    // snapshot data accumulate (see daysOfSnapshotData90).
+    const annualizedCogs90 = cogs90 !== null ? cogs90 * (365 / 90) : null;
+    // avgInventoryValue90 > 0 guards against a divide-by-zero/near-infinite ratio for
+    // a component that sat at (or near) zero stock all quarter — reported as "no
+    // turnover figure" rather than a misleadingly huge number.
+    const turnoverRatioAnnualized =
+      annualizedCogs90 !== null && avgInventoryValue90 !== null && avgInventoryValue90 > 0
+        ? annualizedCogs90 / avgInventoryValue90
+        : null;
+
+    if (annualizedCogs90 !== null && avgInventoryValue90 !== null && avgInventoryValue90 > 0) {
+      sumAnnualizedCogs += annualizedCogs90;
+      sumAvgInventoryValue += avgInventoryValue90;
+    }
+
+    const entry: InventoryHealthEntry = {
+      name: m.name,
+      tier: tierByName.get(m.name) ?? "C",
+      matched: m.matched,
+      purchaseRate: m.purchaseRate,
+      stockOnHand: m.stockOnHand,
+      valueAtCost,
+      lastMovementDate: m.lastMovementDate,
+      daysSinceLastMovement,
+      noMovement90,
+      noMovement180,
+      unitsConsumed90: m.unitsConsumed90,
+      cogs90,
+      avgStockOnHand90,
+      avgInventoryValue90,
+      daysOfSnapshotData90,
+      turnoverRatioAnnualized,
+    };
+    return entry;
+  });
+
+  const summary: InventoryHealthSummary = {
+    generatedAt: new Date().toISOString(),
+    agingWindowDays: movement.windowDays,
+    turnoverWindowDays: movement.turnoverWindowDays,
+    byComponent,
+    aggregate: {
+      totalInventoryValue,
+      deadStockValue90,
+      deadStockValue180,
+      deadStockCount90,
+      deadStockCount180,
+      overallTurnoverRatioAnnualized:
+        sumAvgInventoryValue > 0 ? sumAnnualizedCogs / sumAvgInventoryValue : null,
+      componentsMissingCost,
+      componentsUnmatched,
+    },
+  };
+
+  await saveInventoryHealthSummary(summary);
+  await setLastAgingRun(new Date().toISOString());
+  return summary;
 }
