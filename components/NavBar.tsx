@@ -7,7 +7,12 @@ const LINKS = [
   { href: "/", label: "Overview" },
   { href: "/in-stock", label: "In-Stock Rate" },
   { href: "/fill-rate", label: "Fill Rate" },
+  { href: "/inventory-health", label: "Inventory Health" },
 ];
+
+// TODO: replace with the real inventory-accuracy repo URL. Cross-link only — it
+// opens the repo in a new tab, no data from it is pulled into this dashboard.
+const INVENTORY_ACCURACY_REPO_URL = "https://github.com/REPLACE-ME/inventory-accuracy";
 
 export default function NavBar() {
   const pathname = usePathname();
@@ -28,6 +33,9 @@ export default function NavBar() {
             </Link>
           );
         })}
+        <a href={INVENTORY_ACCURACY_REPO_URL} target="_blank" rel="noopener noreferrer">
+          Inventory Accuracy ↗
+        </a>
       </nav>
     </header>
   );

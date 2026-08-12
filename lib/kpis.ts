@@ -16,6 +16,18 @@ export interface ComponentInStockRate {
   daysInStock: number;
   inStockRate: number | null; // null if we have zero days of data for this item
   history: DayStatus[]; // oldest -> newest, one entry per day in the window
+  // Committed vs. On-Hand — the most recent day in the window with a matched snapshot
+  // for this component (not necessarily today, if a run was missed). null fields mean
+  // no snapshot in the window ever matched this component in Zoho.
+  latestSnapshotDate: string | null;
+  latestStockOnHand: number | null;
+  latestAvailableStock: number | null;
+  // Zoho only tracks committed stock at the composite (assembly) level, not per leaf
+  // component — this is the simple on-hand-minus-available proxy, i.e. units of this
+  // component physically present but already spoken for by open orders/assemblies.
+  // It can read slightly low relative to a true BOM-level committed rolldown, but
+  // needs no extra Zoho calls since both inputs are already in the daily snapshot.
+  latestCommitted: number | null;
 }
 
 export interface InStockRateSummary {
@@ -38,11 +50,15 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
     let daysTracked = 0;
     let daysInStock = 0;
     const history: DayStatus[] = [];
-    for (const snap of snapshots) {
+    let latestSnapshotDate: string | null = null;
+    let latestStockOnHand: number | null = null;
+    let latestAvailableStock: number | null = null;
+
+    snapshots.forEach((snap, i) => {
       const entry = snap?.components[tc.name];
       if (!snap || !entry || !entry.matched) {
         history.push("no-data");
-        continue;
+        return;
       }
       daysTracked += 1;
       if (entry.inStock) {
@@ -51,7 +67,21 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
       } else {
         history.push("out-of-stock");
       }
-    }
+      // snapshots is ordered oldest -> newest (same as dateKeys), so the last matched
+      // entry seen in this loop is always the most recent — no separate reverse pass needed.
+      latestSnapshotDate = dateKeys[i];
+      latestStockOnHand = entry.stockOnHand;
+      latestAvailableStock = entry.availableStock;
+    });
+
+    // Clamped at 0 defensively — available_stock should never exceed stock_on_hand,
+    // but if Zoho data is ever momentarily inconsistent this avoids showing a
+    // confusing negative "committed" figure.
+    const latestCommitted =
+      latestStockOnHand !== null && latestAvailableStock !== null
+        ? Math.max(0, latestStockOnHand - latestAvailableStock)
+        : null;
+
     return {
       name: tc.name,
       tier: tc.tier,
@@ -59,6 +89,10 @@ export async function computeInStockRateSummary(windowDays = 30): Promise<InStoc
       daysInStock,
       inStockRate: daysTracked > 0 ? daysInStock / daysTracked : null,
       history,
+      latestSnapshotDate,
+      latestStockOnHand,
+      latestAvailableStock,
+      latestCommitted,
     };
   });
 

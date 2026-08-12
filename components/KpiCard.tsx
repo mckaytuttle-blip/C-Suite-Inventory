@@ -3,7 +3,11 @@ import { pct } from "@/lib/format";
 
 interface KpiCardProps {
   label: string;
-  value: number | null;
+  // Percentage-rate KPIs (In-Stock Rate, Fill Rate) pass `value` and let this card
+  // format it with pct(). KPIs with a different unit (Inventory Turnover's "x/yr",
+  // Dead Stock's $) pass `displayValue` instead and leave `value` undefined.
+  value?: number | null;
+  displayValue?: string;
   definition: string;
   href: string;
   linkLabel: string;
@@ -16,14 +20,22 @@ interface KpiCardProps {
 // Headline KPI values on the Executive Overview always render in the brand teal,
 // regardless of how good/bad the number is — this card is meant to read as "the
 // brand's number," not a status light. Red/yellow/green status coloring still
-// applies on the /in-stock and /fill-rate detail tables, where at-a-glance status
-// across many rows is the point.
-export default function KpiCard({ label, value, definition, href, linkLabel, sub }: KpiCardProps) {
+// applies on the /in-stock, /fill-rate, and /inventory-health detail tables, where
+// at-a-glance status across many rows is the point.
+export default function KpiCard({
+  label,
+  value,
+  displayValue,
+  definition,
+  href,
+  linkLabel,
+  sub,
+}: KpiCardProps) {
   return (
     <div className="kpi-card">
       <div className="label">{label}</div>
       <div className="value" style={{ color: "var(--brand-teal)" }}>
-        {pct(value)}
+        {displayValue ?? pct(value)}
       </div>
       <p className="definition">{definition}</p>
       <Link href={href} className="drill-link">

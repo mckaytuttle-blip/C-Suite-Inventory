@@ -4,7 +4,9 @@ import { Redis } from "@upstash/redis";
 //   snapshot:{YYYY-MM-DD}      -> ComponentSnapshot     (one per day, components' in-stock status)
 //   fillrate:latest            -> FillRateSummary        (most recently completed calendar month, refreshed daily)
 //   fillrate:history:{YYYY-MM-DD} -> FillRateHistoryPoint (lightweight daily point, for trend charts)
+//   inventory-health:latest    -> InventoryHealthSummary (Aging/Dead Stock + Inventory Turnover, refreshed via /api/cron/aging)
 //   meta:last_snapshot_run     -> ISO timestamp string   (for troubleshooting/observability)
+//   meta:last_aging_run        -> ISO timestamp string   (separate from the above — aging/turnover runs on its own cron)
 export interface ComponentSnapshotEntry {
   itemId: string | null;
   stockOnHand: number | null;
@@ -93,6 +95,51 @@ export interface FillRateHistoryPoint {
   otifRate?: number | null;
   byAssembly: Record<string, { ordered: number; shipped: number }>;
 }
+/**
+ * Per-component Aging + Turnover figures, computed together since both are built on
+ * the same leaf-movement rolldown (lib/leaf-movement.ts) and the same daily stock
+ * snapshots already collected for In-Stock Rate.
+ */
+export interface InventoryHealthEntry {
+  name: string;
+  tier: string;
+  matched: boolean;
+  purchaseRate: number | null; // null if Zoho has no reliable cost on file
+  stockOnHand: number | null; // current, as of the last successful pull
+  valueAtCost: number | null; // stockOnHand * purchaseRate, null if either input is missing
+
+  // --- Aging / Dead Stock ---
+  lastMovementDate: string | null; // null = no movement found anywhere in the 180-day lookback
+  daysSinceLastMovement: number | null; // null = unknown/beyond the lookback window, treat as "180+"
+  noMovement90: boolean;
+  noMovement180: boolean;
+
+  // --- Inventory Turnover (trailing 90 days, annualized) ---
+  unitsConsumed90: number;
+  cogs90: number | null; // unitsConsumed90 * purchaseRate
+  avgStockOnHand90: number | null; // average of daily snapshots (live only) over the trailing 90 days
+  avgInventoryValue90: number | null; // avgStockOnHand90 * purchaseRate
+  daysOfSnapshotData90: number; // how many of the trailing 90 days had a live (non-backfill) snapshot
+  turnoverRatioAnnualized: number | null; // (cogs90 * 365/90) / avgInventoryValue90
+}
+
+export interface InventoryHealthSummary {
+  generatedAt: string;
+  agingWindowDays: number; // 180 — the lookback used for "last movement"
+  turnoverWindowDays: number; // 90 — the window used for COGS/avg inventory
+  byComponent: InventoryHealthEntry[];
+  aggregate: {
+    totalInventoryValue: number; // sum of valueAtCost across matched, priced components
+    deadStockValue90: number; // sum of valueAtCost where noMovement90
+    deadStockValue180: number; // sum of valueAtCost where noMovement180
+    deadStockCount90: number;
+    deadStockCount180: number;
+    overallTurnoverRatioAnnualized: number | null; // $-weighted: sum(annualized COGS) / sum(avg inventory $)
+    componentsMissingCost: number; // matched components with no usable purchase_rate
+    componentsUnmatched: number; // tracked components not found in Zoho at all
+  };
+}
+
 let client: Redis | null = null;
 // Vercel's Marketplace Redis integrations don't always use the plain
 // UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN names — depending on what
@@ -172,4 +219,20 @@ export async function setLastSnapshotRun(iso: string): Promise<void> {
 export async function getLastSnapshotRun(): Promise<string | null> {
   const redis = getClient();
   return (await redis.get<string>("meta:last_snapshot_run")) ?? null;
+}
+export async function saveInventoryHealthSummary(summary: InventoryHealthSummary): Promise<void> {
+  const redis = getClient();
+  await redis.set("inventory-health:latest", summary);
+}
+export async function getInventoryHealthSummary(): Promise<InventoryHealthSummary | null> {
+  const redis = getClient();
+  return (await redis.get<InventoryHealthSummary>("inventory-health:latest")) ?? null;
+}
+export async function setLastAgingRun(iso: string): Promise<void> {
+  const redis = getClient();
+  await redis.set("meta:last_aging_run", iso);
+}
+export async function getLastAgingRun(): Promise<string | null> {
+  const redis = getClient();
+  return (await redis.get<string>("meta:last_aging_run")) ?? null;
 }

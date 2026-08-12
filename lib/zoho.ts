@@ -65,6 +65,12 @@ export type ZohoItem = {
   stock_on_hand: number;
   available_stock: number;
   actual_available_stock: number;
+  // Standard/last purchase cost per unit, as maintained in Zoho. This is the cost
+  // basis used for Inventory Turnover (COGS) and Aging/Dead Stock ($ value at cost)
+  // — NOT a selling price. Some very old or never-purchased items can have this as
+  // 0/undefined, so callers should treat 0 as "no reliable cost on file" rather than
+  // a real $0 cost.
+  purchase_rate: number;
 };
 export type ZohoCompositeItem = {
   composite_item_id: string;
@@ -75,6 +81,17 @@ export type ZohoCompositeItem = {
   stock_on_hand: number;
   available_stock: number;
   actual_available_stock: number;
+  purchase_rate: number;
+};
+/** One line of a composite item's bill of materials, as returned in mapped_items[]. */
+export type ZohoBomLine = {
+  item_id: string;
+  name: string;
+  quantity: number;
+};
+export type ZohoCompositeItemDetail = {
+  compositeItemId: string;
+  mappedItems: ZohoBomLine[];
 };
 export type ZohoSalesOrder = {
   salesorder_id: string;
@@ -186,6 +203,24 @@ export async function fetchAllCompositeItems(): Promise<ZohoCompositeItem[]> {
     page += 1;
   }
   return all;
+}
+/**
+ * Fetch a single composite item's bill of materials (mapped_items). Only exists on
+ * the detail endpoint, not the /compositeitems list. Some composites are built from
+ * other composites (e.g. "Sensor Desktop (with cord & plug)" from "Sensor Desktop"),
+ * so a mapped_item's item_id here may itself be a composite — see lib/bom.ts for the
+ * recursive flattening down to leaf parts.
+ */
+export async function fetchCompositeItemDetail(
+  compositeItemId: string
+): Promise<ZohoCompositeItemDetail> {
+  const data = await zohoGet<{
+    composite_item: { mapped_items?: ZohoBomLine[] };
+  }>(`/compositeitems/${compositeItemId}`);
+  return {
+    compositeItemId,
+    mappedItems: data.composite_item.mapped_items ?? [],
+  };
 }
 /** Fetch sales orders whose `date` falls within [startDate, endDate] (inclusive, YYYY-MM-DD). */
 export async function fetchSalesOrdersInRange(
