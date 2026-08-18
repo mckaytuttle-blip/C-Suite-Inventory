@@ -133,7 +133,7 @@ export default async function OverviewPage() {
           linkLabel="Take a Deeper Look"
           sub={
             inventoryHealth
-              ? `${inventoryHealth.turnoverWindowDays}-day COGS window · updates daily via its own job`
+              ? `${inventoryHealth.turnoverWindowDays}-day COGS window`
               : "Not yet run"
           }
         />
