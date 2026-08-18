@@ -71,6 +71,12 @@ export type ZohoItem = {
   // 0/undefined, so callers should treat 0 as "no reliable cost on file" rather than
   // a real $0 cost.
   purchase_rate: number;
+  // The vendor Zoho has on file for this item's default purchase source. Optional —
+  // confirmed live that roughly half of all Zoho items have this blank, though
+  // coverage is much better (81/83) across the tracked hardware components
+  // specifically. Used for the Vendor Concentration view; treat missing/blank as
+  // "no vendor on file" rather than assuming a single-vendor item.
+  vendor_name?: string;
 };
 export type ZohoCompositeItem = {
   composite_item_id: string;
@@ -289,6 +295,54 @@ export async function fetchPurchaseOrderDetail(
     billDates: (po.bills ?? []).map((b) => b.date).filter(Boolean),
     lastModifiedDate: po.last_modified_time ? po.last_modified_time.slice(0, 10) : null,
   };
+}
+
+// A purchase order as returned by the /purchaseorders LIST endpoint (confirmed live
+// against the real API — field names below are exactly what Zoho returns, not
+// inferred). Deliberately a much smaller shape than ZohoLinkedPurchaseOrder/
+// ZohoPurchaseOrderDetail above, which come from the *detail* endpoint for a single
+// PO linked to a dropship sales order — this one is for the org-wide "Total Spend"
+// KPI, which needs every purchase order regardless of whether it's linked to a sales
+// order or a tracked component at all.
+export type ZohoPurchaseOrder = {
+  purchaseorder_id: string;
+  purchaseorder_number: string;
+  vendor_name: string;
+  date: string; // YYYY-MM-DD
+  // Observed values live: "issued", "received", "partially_received". Zoho also
+  // supports "cancelled" (not seen in our 365-day sample, but the field exists and
+  // should still be excluded from spend) and likely "draft".
+  status: string;
+  total: number;
+};
+/**
+ * Fetch every purchase order (org-wide, not scoped to the 83 tracked components)
+ * whose `date` falls within [startDate, endDate]. List endpoint only — `total` and
+ * `vendor_name` are already present on the list record, so this needs no per-order
+ * detail calls (unlike fetchSalesOrderDetail's line-item rolldown), making it cheap
+ * to run on every daily aging cron.
+ */
+export async function fetchAllPurchaseOrdersInRange(
+  startDate: string,
+  endDate: string
+): Promise<ZohoPurchaseOrder[]> {
+  const all: ZohoPurchaseOrder[] = [];
+  let page = 1;
+  for (;;) {
+    const data = await zohoGet<{
+      purchaseorders: ZohoPurchaseOrder[];
+      page_context: { has_more_page: boolean };
+    }>("/purchaseorders", {
+      per_page: 200,
+      page,
+      date_start: startDate,
+      date_end: endDate,
+    });
+    all.push(...data.purchaseorders);
+    if (!data.page_context?.has_more_page) break;
+    page += 1;
+  }
+  return all;
 }
 
 /** Simple concurrency-limited map, used to avoid hammering Zoho's rate limits. */
