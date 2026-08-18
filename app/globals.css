@@ -372,6 +372,40 @@ footer.page-footer {
   margin-top: 40px;
   line-height: 1.6;
 }
+/* ---------- Section header (groups cards under a heading within a page, e.g. the
+   Overview page's "Inventory Health — Quick View" row) ---------- */
+.section-header h2 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.section-header p.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+/* ---------- Expandable table toggle (Capital Tied Up / Vendor Concentration / Total
+   Spend breakdowns, and the Aging & Turnover tables) — same pill styling as .drill-link
+   so it reads as part of the same design language rather than a generic button. ---------- */
+.expand-toggle {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-hover);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.expand-toggle:hover {
+  border-color: var(--brand-teal);
+  transform: translateX(2px);
+}
 /* ---------- Site footer (app/layout.tsx, appears on every page) ---------- */
 .site-footer {
   max-width: 1180px;
