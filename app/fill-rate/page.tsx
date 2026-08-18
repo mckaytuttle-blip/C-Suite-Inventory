@@ -71,7 +71,7 @@ export default async function FillRateDetailPage() {
     : "";
 
   return (
-    <div className="page">
+    <div className="page page-fillrate">
       <div className="page-header">
         <div>
           <h1>Fill Rate Detail</h1>
