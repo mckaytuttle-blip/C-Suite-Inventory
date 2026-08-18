@@ -11,12 +11,15 @@ export interface ExpandableTableProps {
   columns: ExpandableTableColumn[];
   // Pre-formatted cell content, keyed by column `key` — callers build these (money(),
   // pct(), tier pills, status labels, etc.) rather than this component knowing about
-  // any particular KPI's formatting rules.
-  rows: Record<string, React.ReactNode>[];
+  // any particular KPI's formatting rules. Include a `_key` field (a plain string,
+  // e.g. the component/vendor name) on every row for React's list key — NOT a
+  // function prop: this component is a Client Component ("use client"), and Server
+  // Components (every page that renders this) can't pass functions as props across
+  // that boundary. Only serializable data crosses; a `rowKey` callback doesn't.
+  rows: (Record<string, React.ReactNode> & { _key: string })[];
   // How many rows show by default before the toggle appears — the "relevant factors
   // contributing to this KPI" view. Everything beyond this is one click away, not lost.
   defaultCount?: number;
-  rowKey: (row: Record<string, React.ReactNode>, index: number) => string;
   emptyMessage?: string;
 }
 
@@ -30,7 +33,6 @@ export default function ExpandableTable({
   columns,
   rows,
   defaultCount = 10,
-  rowKey,
   emptyMessage = "No data yet.",
 }: ExpandableTableProps) {
   const [expanded, setExpanded] = useState(false);
@@ -53,8 +55,8 @@ export default function ExpandableTable({
           </tr>
         </thead>
         <tbody>
-          {visible.map((row, i) => (
-            <tr key={rowKey(row, i)}>
+          {visible.map((row) => (
+            <tr key={row._key}>
               {columns.map((c) => (
                 <td key={c.key} className={c.numeric ? "numeric" : undefined}>
                   {row[c.key] ?? "—"}
