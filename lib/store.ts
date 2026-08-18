@@ -107,6 +107,7 @@ export interface InventoryHealthEntry {
   purchaseRate: number | null; // null if Zoho has no reliable cost on file
   stockOnHand: number | null; // current, as of the last successful pull
   valueAtCost: number | null; // stockOnHand * purchaseRate, null if either input is missing
+  vendorName: string | null; // Zoho's on-file vendor for this component, null if blank
 
   // --- Aging / Dead Stock ---
   lastMovementDate: string | null; // null = no movement found anywhere in the 180-day lookback
@@ -123,6 +124,37 @@ export interface InventoryHealthEntry {
   turnoverRatioAnnualized: number | null; // (cogs90 * 365/90) / avgInventoryValue90
 }
 
+/** One vendor's share of the 83 tracked components' current on-hand value. */
+export interface VendorInventoryShare {
+  vendorName: string; // "No vendor on file" bucket for blank/missing
+  inventoryValue: number; // sum of valueAtCost across this vendor's tracked components
+  skuCount: number; // how many tracked components trace to this vendor
+}
+
+/** One vendor's share of trailing-window, org-wide purchase order spend. */
+export interface VendorSpendShare {
+  vendorName: string;
+  spend: number;
+  poCount: number;
+}
+
+/**
+ * Org-wide purchase order spend over a trailing window — deliberately NOT scoped to
+ * the 83 tracked components (Stat asked for total company procurement spend, not just
+ * hardware). A separate Zoho pull from everything else in InventoryHealthSummary, so
+ * it's nullable: if this piece of the aging cron fails, Aging/Turnover/Dead Stock
+ * still save successfully and this just reports as unavailable rather than taking
+ * down the whole snapshot.
+ */
+export interface SpendSummary {
+  windowDays: number; // 365
+  windowStart: string;
+  windowEnd: string;
+  totalSpend: number; // sum of PO totals, excluding cancelled
+  poCount: number;
+  byVendor: VendorSpendShare[]; // sorted desc by spend
+}
+
 export interface InventoryHealthSummary {
   generatedAt: string;
   agingWindowDays: number; // 180 — the lookback used for "last movement"
@@ -137,6 +169,10 @@ export interface InventoryHealthSummary {
     overallTurnoverRatioAnnualized: number | null; // $-weighted: sum(annualized COGS) / sum(avg inventory $)
     componentsMissingCost: number; // matched components with no usable purchase_rate
     componentsUnmatched: number; // tracked components not found in Zoho at all
+    // Added alongside Capital Tied Up / Vendor Concentration / Total Spend — optional
+    // so summaries saved before this change don't fail to parse (see getInventoryHealthSummary).
+    vendorInventoryBreakdown?: VendorInventoryShare[]; // sorted desc by inventoryValue
+    spend?: SpendSummary | null; // null if the spend pull itself failed this run
   };
 }
 
