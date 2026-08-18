@@ -1,4 +1,5 @@
 // app/inventory-health/page.tsx
+import ExpandableTable, { ExpandableTableColumn } from "@/components/ExpandableTable";
 import { deadStockShareTone, money, pct, toneColor, turnoverLabel } from "@/lib/format";
 import { getInventoryHealthSummary, getLastAgingRun, InventoryHealthEntry } from "@/lib/store";
 
@@ -13,6 +14,10 @@ function movementLabel(entry: InventoryHealthEntry): string {
   if (!entry.matched) return "not found in Zoho";
   if (entry.lastMovementDate === null) return "No movement in 180+ days";
   return `${entry.lastMovementDate} (${entry.daysSinceLastMovement}d ago)`;
+}
+
+function statusPill(bad: boolean, badLabel: string, goodLabel: string) {
+  return <span style={{ color: toneColor(bad ? "bad" : "good") }}>{bad ? badLabel : goodLabel}</span>;
 }
 
 export default async function InventoryHealthPage() {
@@ -85,13 +90,112 @@ export default async function InventoryHealthPage() {
       return av - bv;
     });
 
+  // --- Capital Tied Up in Inventory: same components, sorted by $ value at cost ---
+  const byValueSorted = [...summary.byComponent]
+    .filter((c) => c.valueAtCost !== null)
+    .sort((a, b) => (b.valueAtCost ?? 0) - (a.valueAtCost ?? 0));
+
+  // --- Vendor Concentration & Total Spend — both optional; summaries saved before
+  // this feature shipped won't have them until the next daily aging run.
+  const vendorBreakdown = aggregate.vendorInventoryBreakdown ?? [];
+  const spend = aggregate.spend ?? null;
+
+  const agingColumns: ExpandableTableColumn[] = [
+    { key: "name", label: "Component" },
+    { key: "tier", label: "Tier" },
+    { key: "onHand", label: "On Hand", numeric: true },
+    { key: "value", label: "Value at Cost", numeric: true },
+    { key: "lastMovement", label: "Last Movement" },
+    { key: "d90", label: "90d", numeric: true },
+    { key: "d180", label: "180d", numeric: true },
+  ];
+  const agingRows = agingSorted.map((c) => ({
+    _key: c.name,
+    name: c.name,
+    tier: <span className={tierClass(c.tier)}>{c.tier}</span>,
+    onHand: c.stockOnHand ?? "—",
+    value: money(c.valueAtCost),
+    lastMovement: movementLabel(c),
+    d90: statusPill(c.noMovement90, "dead", "moving"),
+    d180: statusPill(c.noMovement180, "dead", "moving"),
+  }));
+
+  const turnoverColumns: ExpandableTableColumn[] = [
+    { key: "name", label: "Component" },
+    { key: "tier", label: "Tier" },
+    { key: "units", label: "Units Consumed (90d)", numeric: true },
+    { key: "cogs", label: "COGS (annualized)", numeric: true },
+    { key: "avgInv", label: "Avg Inventory ($)", numeric: true },
+    { key: "turnover", label: "Turnover", numeric: true },
+    { key: "data", label: "Data", numeric: true },
+  ];
+  const turnoverRows = turnoverSorted.map((c) => ({
+    _key: c.name,
+    name: c.name,
+    tier: <span className={tierClass(c.tier)}>{c.tier}</span>,
+    units: c.unitsConsumed90.toLocaleString(),
+    cogs: money(c.cogs90 !== null ? c.cogs90 * (365 / 90) : null),
+    avgInv: money(c.avgInventoryValue90),
+    turnover: turnoverLabel(c.turnoverRatioAnnualized),
+    data: (
+      <span title="Days of live (non-backfill) snapshot data used for the average inventory figure, out of the trailing 90.">
+        {c.daysOfSnapshotData90}/90
+      </span>
+    ),
+  }));
+
+  const capitalColumns: ExpandableTableColumn[] = [
+    { key: "name", label: "Component" },
+    { key: "tier", label: "Tier" },
+    { key: "onHand", label: "On Hand", numeric: true },
+    { key: "value", label: "Value at Cost", numeric: true },
+    { key: "share", label: "% of Tracked Value", numeric: true },
+  ];
+  const capitalRows = byValueSorted.map((c) => ({
+    _key: c.name,
+    name: c.name,
+    tier: <span className={tierClass(c.tier)}>{c.tier}</span>,
+    onHand: c.stockOnHand ?? "—",
+    value: money(c.valueAtCost),
+    share: aggregate.totalInventoryValue > 0 ? pct((c.valueAtCost ?? 0) / aggregate.totalInventoryValue) : "—",
+  }));
+
+  const vendorColumns: ExpandableTableColumn[] = [
+    { key: "vendor", label: "Vendor" },
+    { key: "skuCount", label: "Tracked SKUs", numeric: true },
+    { key: "value", label: "Inventory Value", numeric: true },
+    { key: "share", label: "% of Tracked Value", numeric: true },
+  ];
+  const vendorRows = vendorBreakdown.map((v) => ({
+    _key: v.vendorName,
+    vendor: v.vendorName,
+    skuCount: v.skuCount,
+    value: money(v.inventoryValue),
+    share: aggregate.totalInventoryValue > 0 ? pct(v.inventoryValue / aggregate.totalInventoryValue) : "—",
+  }));
+
+  const spendColumns: ExpandableTableColumn[] = [
+    { key: "vendor", label: "Vendor" },
+    { key: "poCount", label: "Purchase Orders", numeric: true },
+    { key: "spend", label: "Spend", numeric: true },
+    { key: "share", label: "% of Total Spend", numeric: true },
+  ];
+  const spendRows = (spend?.byVendor ?? []).map((v) => ({
+    _key: v.vendorName,
+    vendor: v.vendorName,
+    poCount: v.poCount,
+    spend: money(v.spend),
+    share: spend && spend.totalSpend > 0 ? pct(v.spend / spend.totalSpend) : "—",
+  }));
+
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Inventory Health</h1>
           <p className="subtitle">
-            Inventory Turnover &amp; Aging/Dead Stock · {summary.byComponent.length} tracked components
+            Turnover, Aging/Dead Stock, Capital Tied Up &amp; Vendor Concentration ·{" "}
+            {summary.byComponent.length} tracked components
           </p>
         </div>
         <p className="updated">
@@ -130,6 +234,27 @@ export default async function InventoryHealthPage() {
             180 days.
           </p>
         </div>
+        <div className="kpi-card">
+          <div className="label">Capital Tied Up in Inventory</div>
+          <div className="value" style={{ color: "var(--brand-teal)" }}>
+            {money(aggregate.totalInventoryValue)}
+          </div>
+          <p className="definition">
+            Current on-hand value at cost across every matched, priced tracked component — the
+            $ this hardware is holding right now.
+          </p>
+        </div>
+        <div className="kpi-card">
+          <div className="label">Total Spend (Trailing 12 Months)</div>
+          <div className="value" style={{ color: "var(--brand-teal)" }}>
+            {money(spend?.totalSpend ?? null)}
+          </div>
+          <p className="definition">
+            All Zoho purchase orders company-wide over the trailing 12 months, not just the
+            tracked hardware components.
+            {spend ? ` ${spend.poCount} purchase orders.` : ""}
+          </p>
+        </div>
       </div>
 
       {(aggregate.componentsUnmatched > 0 || aggregate.componentsMissingCost > 0) && (
@@ -143,95 +268,76 @@ export default async function InventoryHealthPage() {
       )}
 
       <section className="panel" style={{ marginBottom: 28 }}>
+        <h2>Capital Tied Up — By Component</h2>
+        <p className="panel-sub">
+          The components carrying the most $ in on-hand stock right now, highest first. Shows the
+          top 10 contributors to the {money(aggregate.totalInventoryValue)} total by default —
+          expand to see all {summary.byComponent.length}.
+        </p>
+        <ExpandableTable
+          columns={capitalColumns}
+          rows={capitalRows}
+          rowKey={(r) => String(r._key)}
+          emptyMessage="No priced components yet."
+        />
+      </section>
+
+      <section className="panel" style={{ marginBottom: 28 }}>
+        <h2>Vendor Concentration</h2>
+        <p className="panel-sub">
+          Share of tracked components&apos; current inventory value ($) and SKU count by vendor —
+          the vendors this dashboard&apos;s hardware relies on most, and how much of that reliance
+          is concentrated in one place. Shows the top 10 by value by default.
+        </p>
+        {vendorBreakdown.length === 0 ? (
+          <p className="empty-state">
+            Vendor Concentration will appear after the next daily aging run (<code>/api/cron/aging</code>
+            ) — this summary was saved before this view was added.
+          </p>
+        ) : (
+          <ExpandableTable columns={vendorColumns} rows={vendorRows} rowKey={(r) => String(r._key)} />
+        )}
+      </section>
+
+      <section className="panel" style={{ marginBottom: 28 }}>
+        <h2>Total Spend — By Vendor (Trailing 12 Months)</h2>
+        <p className="panel-sub">
+          Every Zoho purchase order company-wide over the trailing 12 months, grouped by vendor —
+          not scoped to the 83 tracked components. Shows the top 10 vendors by spend by default.
+          {spend && ` Window: ${spend.windowStart} → ${spend.windowEnd}.`}
+        </p>
+        {!spend ? (
+          <p className="empty-state">
+            Total Spend hasn&apos;t been computed yet — it&apos;ll appear after the next daily
+            aging run (<code>/api/cron/aging</code>).
+          </p>
+        ) : (
+          <ExpandableTable columns={spendColumns} rows={spendRows} rowKey={(r) => String(r._key)} />
+        )}
+      </section>
+
+      <section className="panel" style={{ marginBottom: 28 }}>
         <h2>Aging / Dead Stock</h2>
         <p className="panel-sub">
-          Sorted oldest-first by days since last movement. &quot;Movement&quot; means a sales order
-          line item — either this component sold directly, or rolled down through a composite&apos;s
-          bill of materials into an assembly that sold. &quot;No movement in 180+ days&quot; means
-          none was found anywhere in the trailing 180-day lookback, not necessarily exactly 180.
+          &quot;Movement&quot; means a sales order line item — either this component sold
+          directly, or rolled down through a composite&apos;s bill of materials into an assembly
+          that sold. &quot;No movement in 180+ days&quot; means none was found anywhere in the
+          trailing 180-day lookback, not necessarily exactly 180. Shows the 10 most stale
+          components by default, oldest first — expand to see all {summary.byComponent.length}.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th>Tier</th>
-              <th>On Hand</th>
-              <th>Value at Cost</th>
-              <th>Last Movement</th>
-              <th>90d</th>
-              <th>180d</th>
-            </tr>
-          </thead>
-          <tbody>
-            {agingSorted.map((c) => (
-              <tr key={c.name}>
-                <td className="name">{c.name}</td>
-                <td>
-                  <span className={tierClass(c.tier)}>{c.tier}</span>
-                </td>
-                <td className="numeric">{c.stockOnHand ?? "—"}</td>
-                <td className="numeric">{money(c.valueAtCost)}</td>
-                <td>{movementLabel(c)}</td>
-                <td className="numeric">
-                  {c.noMovement90 ? (
-                    <span style={{ color: toneColor("bad") }}>dead</span>
-                  ) : (
-                    <span style={{ color: toneColor("good") }}>moving</span>
-                  )}
-                </td>
-                <td className="numeric">
-                  {c.noMovement180 ? (
-                    <span style={{ color: toneColor("bad") }}>dead</span>
-                  ) : (
-                    <span style={{ color: toneColor("good") }}>moving</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ExpandableTable columns={agingColumns} rows={agingRows} rowKey={(r) => String(r._key)} />
       </section>
 
       <section className="panel">
         <h2>Inventory Turnover by component</h2>
         <p className="panel-sub">
-          Sorted slowest-first. COGS uses units consumed in the trailing 90 days (direct sales plus
-          BOM rolldown) × Zoho&apos;s purchase cost, annualized (×365/90). Average inventory is the
-          mean of daily on-hand snapshots over the same 90 days — accuracy improves as more days of
-          live (non-backfilled) snapshot history accumulate; see the Data column.
+          COGS uses units consumed in the trailing 90 days (direct sales plus BOM rolldown) ×
+          Zoho&apos;s purchase cost, annualized (×365/90). Average inventory is the mean of daily
+          on-hand snapshots over the same 90 days — accuracy improves as more days of live
+          (non-backfilled) snapshot history accumulate; see the Data column. Shows the 10 slowest
+          movers by default — expand to see all {summary.byComponent.length}.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th>Tier</th>
-              <th>Units Consumed (90d)</th>
-              <th>COGS (annualized)</th>
-              <th>Avg Inventory ($)</th>
-              <th>Turnover</th>
-              <th>Data</th>
-            </tr>
-          </thead>
-          <tbody>
-            {turnoverSorted.map((c) => (
-              <tr key={c.name}>
-                <td className="name">{c.name}</td>
-                <td>
-                  <span className={tierClass(c.tier)}>{c.tier}</span>
-                </td>
-                <td className="numeric">{c.unitsConsumed90.toLocaleString()}</td>
-                <td className="numeric">
-                  {money(c.cogs90 !== null ? c.cogs90 * (365 / 90) : null)}
-                </td>
-                <td className="numeric">{money(c.avgInventoryValue90)}</td>
-                <td className="numeric">{turnoverLabel(c.turnoverRatioAnnualized)}</td>
-                <td className="numeric" title="Days of live (non-backfill) snapshot data used for the average inventory figure, out of the trailing 90.">
-                  {c.daysOfSnapshotData90}/90
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ExpandableTable columns={turnoverColumns} rows={turnoverRows} rowKey={(r) => String(r._key)} />
       </section>
     </div>
   );
