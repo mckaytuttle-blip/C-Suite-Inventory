@@ -277,7 +277,6 @@ export default async function InventoryHealthPage() {
         <ExpandableTable
           columns={capitalColumns}
           rows={capitalRows}
-          rowKey={(r) => String(r._key)}
           emptyMessage="No priced components yet."
         />
       </section>
@@ -295,7 +294,7 @@ export default async function InventoryHealthPage() {
             ) — this summary was saved before this view was added.
           </p>
         ) : (
-          <ExpandableTable columns={vendorColumns} rows={vendorRows} rowKey={(r) => String(r._key)} />
+          <ExpandableTable columns={vendorColumns} rows={vendorRows} />
         )}
       </section>
 
@@ -312,7 +311,7 @@ export default async function InventoryHealthPage() {
             aging run (<code>/api/cron/aging</code>).
           </p>
         ) : (
-          <ExpandableTable columns={spendColumns} rows={spendRows} rowKey={(r) => String(r._key)} />
+          <ExpandableTable columns={spendColumns} rows={spendRows} />
         )}
       </section>
 
@@ -325,7 +324,7 @@ export default async function InventoryHealthPage() {
           trailing 180-day lookback, not necessarily exactly 180. Shows the 10 most stale
           components by default, oldest first — expand to see all {summary.byComponent.length}.
         </p>
-        <ExpandableTable columns={agingColumns} rows={agingRows} rowKey={(r) => String(r._key)} />
+        <ExpandableTable columns={agingColumns} rows={agingRows} />
       </section>
 
       <section className="panel">
@@ -337,7 +336,7 @@ export default async function InventoryHealthPage() {
           (non-backfilled) snapshot history accumulate; see the Data column. Shows the 10 slowest
           movers by default — expand to see all {summary.byComponent.length}.
         </p>
-        <ExpandableTable columns={turnoverColumns} rows={turnoverRows} rowKey={(r) => String(r._key)} />
+        <ExpandableTable columns={turnoverColumns} rows={turnoverRows} />
       </section>
     </div>
   );
