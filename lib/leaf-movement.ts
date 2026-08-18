@@ -28,6 +28,8 @@ export interface LeafMovementEntry {
   purchaseRate: number | null;
   stockOnHand: number | null;
   availableStock: number | null;
+  // Zoho's on-file vendor for this component, null if blank/missing (see ZohoItem.vendor_name).
+  vendorName: string | null;
   /** Most recent date (YYYY-MM-DD) this leaf was consumed within the lookback window, or null if none found. */
   lastMovementDate: string | null;
   /** Units attributed to this leaf (direct sales + BOM rolldown) in the trailing 90 days. */
@@ -138,6 +140,7 @@ export async function computeLeafMovement(windowDays = 180): Promise<LeafMovemen
       purchaseRate: item && item.purchase_rate > 0 ? item.purchase_rate : null,
       stockOnHand: item?.stock_on_hand ?? null,
       availableStock: item?.available_stock ?? null,
+      vendorName: item?.vendor_name && item.vendor_name.trim() !== "" ? item.vendor_name : null,
       lastMovementDate: lastMovement.get(tc.name) ?? null,
       unitsConsumed90: consumed90.get(tc.name) ?? 0,
       unitsConsumedWindow: consumedWindow.get(tc.name) ?? 0,
