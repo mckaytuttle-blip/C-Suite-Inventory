@@ -116,7 +116,7 @@ export default async function InventoryHealthPage() {
             {money(aggregate.deadStockValue90)}
           </div>
           <p className="definition">
-            {aggregate.deadStockCount90} component(s) with no movement in the trailing 90 days
+            {aggregate.deadStockCount90} component(s) with no movement in the last 90 days
             {deadStockShare90 !== null ? ` · ${pct(deadStockShare90)} of tracked inventory value` : ""}.
           </p>
         </div>
@@ -126,8 +126,8 @@ export default async function InventoryHealthPage() {
             {money(aggregate.deadStockValue180)}
           </div>
           <p className="definition">
-            {aggregate.deadStockCount180} component(s) with no recorded movement in the trailing
-            180 days — the harder cutoff.
+            {aggregate.deadStockCount180} component(s) with no recorded movement in the last
+            180 days.
           </p>
         </div>
       </div>
