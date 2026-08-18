@@ -3,6 +3,7 @@ import { daysBetweenKeys, lastNDateKeys, todayKey } from "./dates";
 import { computeLeafMovement } from "./leaf-movement";
 import {
   fetchAllItems,
+  fetchAllPurchaseOrdersInRange,
   fetchPurchaseOrderDetail,
   fetchSalesOrderDetail,
   fetchSalesOrdersInRange,
@@ -16,13 +17,19 @@ import {
   getComponentSnapshots,
   InventoryHealthEntry,
   InventoryHealthSummary,
+  SpendSummary,
   saveComponentSnapshot,
   saveFillRateHistoryPoint,
   saveFillRateSummary,
   saveInventoryHealthSummary,
   setLastAgingRun,
   setLastSnapshotRun,
+  VendorInventoryShare,
 } from "./store";
+
+// Trailing window for the org-wide "Total Spend" KPI — 12 months, per Stat's choice
+// (a CEO-framed annual number, not the shorter 90-day COGS window used elsewhere).
+const SPEND_WINDOW_DAYS = 365;
 
 /** Pull today's stock levels for every tracked component and store the snapshot. */
 export async function runComponentSnapshot(date: string = todayKey()): Promise<ComponentSnapshot> {
@@ -395,6 +402,7 @@ export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSumma
       purchaseRate: m.purchaseRate,
       stockOnHand: m.stockOnHand,
       valueAtCost,
+      vendorName: m.vendorName,
       lastMovementDate: m.lastMovementDate,
       daysSinceLastMovement,
       noMovement90,
@@ -408,6 +416,66 @@ export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSumma
     };
     return entry;
   });
+
+  // Vendor Concentration (by current tracked-inventory value) — purely derived from
+  // byComponent above, no extra Zoho calls. Components with no usable $ value are
+  // excluded (same rule as totalInventoryValue) rather than counted as $0, so a
+  // vendor's share isn't diluted by components we can't actually price.
+  const vendorValueMap = new Map<string, { inventoryValue: number; skuCount: number }>();
+  for (const c of byComponent) {
+    if (c.valueAtCost === null) continue;
+    const vendor = c.vendorName ?? "No vendor on file";
+    const bucket = vendorValueMap.get(vendor) ?? { inventoryValue: 0, skuCount: 0 };
+    bucket.inventoryValue += c.valueAtCost;
+    bucket.skuCount += 1;
+    vendorValueMap.set(vendor, bucket);
+  }
+  const vendorInventoryBreakdown: VendorInventoryShare[] = [...vendorValueMap.entries()]
+    .map(([vendorName, v]) => ({ vendorName, inventoryValue: v.inventoryValue, skuCount: v.skuCount }))
+    .sort((a, b) => b.inventoryValue - a.inventoryValue);
+
+  // Total Spend — org-wide purchase order spend, trailing 12 months. Deliberately NOT
+  // scoped to the 83 tracked components (Stat asked for total company procurement
+  // spend). This is a separate Zoho pull from everything above, so it's wrapped in its
+  // own try/catch: if it fails, Aging/Turnover/Dead Stock/Vendor Concentration still
+  // save successfully and this just reports as unavailable rather than losing the
+  // whole daily snapshot over a piece of it.
+  let spend: SpendSummary | null = null;
+  try {
+    const spendDateKeys = lastNDateKeys(SPEND_WINDOW_DAYS);
+    const spendWindowStart = spendDateKeys[0];
+    const spendWindowEnd = spendDateKeys[spendDateKeys.length - 1];
+    const purchaseOrders = await fetchAllPurchaseOrdersInRange(spendWindowStart, spendWindowEnd);
+    const nonCancelled = purchaseOrders.filter((po) => po.status !== "cancelled");
+    const totalSpend = nonCancelled.reduce((s, po) => s + (po.total ?? 0), 0);
+
+    const vendorSpendMap = new Map<string, { spend: number; poCount: number }>();
+    for (const po of nonCancelled) {
+      const vendor = po.vendor_name && po.vendor_name.trim() !== "" ? po.vendor_name : "No vendor on file";
+      const bucket = vendorSpendMap.get(vendor) ?? { spend: 0, poCount: 0 };
+      bucket.spend += po.total ?? 0;
+      bucket.poCount += 1;
+      vendorSpendMap.set(vendor, bucket);
+    }
+    const byVendor = [...vendorSpendMap.entries()]
+      .map(([vendorName, v]) => ({ vendorName, spend: v.spend, poCount: v.poCount }))
+      .sort((a, b) => b.spend - a.spend);
+
+    spend = {
+      windowDays: SPEND_WINDOW_DAYS,
+      windowStart: spendWindowStart,
+      windowEnd: spendWindowEnd,
+      totalSpend,
+      poCount: nonCancelled.length,
+      byVendor,
+    };
+  } catch (err) {
+    console.error(
+      "Failed to compute Total Spend (non-fatal — Aging/Turnover/Dead Stock still saved):",
+      err
+    );
+    spend = null;
+  }
 
   const summary: InventoryHealthSummary = {
     generatedAt: new Date().toISOString(),
@@ -424,6 +492,8 @@ export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSumma
         sumAvgInventoryValue > 0 ? sumAnnualizedCogs / sumAvgInventoryValue : null,
       componentsMissingCost,
       componentsUnmatched,
+      vendorInventoryBreakdown,
+      spend,
     },
   };
 
