@@ -78,7 +78,7 @@ export default async function OverviewPage() {
           {lastRun ? `Last updated ${new Date(lastRun).toLocaleString()}` : "Not yet run"}
         </p>
       </div>
-      <div className="kpi-grid">
+      <div className="kpi-grid kpi-grid-compact">
         <KpiCard
           label="In-Stock Rate"
           value={inStock?.overallInStockRate ?? null}
@@ -125,7 +125,7 @@ export default async function OverviewPage() {
           Turnover, Aging/Dead Stock, Capital Tied Up &amp; Spend
         </p>
       </div>
-      <div className="kpi-grid">
+      <div className="kpi-grid kpi-grid-compact">
         <KpiCard
           label="Inventory Turnover"
           displayValue={turnoverLabel(inventoryHealth?.aggregate.overallTurnoverRatioAnnualized ?? null)}
