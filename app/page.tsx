@@ -1,29 +1,42 @@
 // app/page.tsx
 import KpiCard from "@/components/KpiCard";
 import { computeInStockRateSummary, InStockRateSummary, viewFillRate, FillRateView } from "@/lib/kpis";
-import { pct } from "@/lib/format";
-import { getFillRateSummary, getLastSnapshotRun } from "@/lib/store";
+import { money, pct, turnoverLabel } from "@/lib/format";
+import {
+  getFillRateSummary,
+  getInventoryHealthSummary,
+  getLastSnapshotRun,
+  InventoryHealthSummary,
+} from "@/lib/store";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 async function loadData(): Promise<{
   inStock: InStockRateSummary | null;
   fillRate: FillRateView | null;
+  inventoryHealth: InventoryHealthSummary | null;
   lastRun: string | null;
   error: string | null;
 }> {
   try {
-    const [inStock, fillRateRaw, lastRun] = await Promise.all([
+    const [inStock, fillRateRaw, inventoryHealth, lastRun] = await Promise.all([
       computeInStockRateSummary(30),
       getFillRateSummary(),
+      getInventoryHealthSummary(),
       getLastSnapshotRun(),
     ]);
-    return { inStock, fillRate: viewFillRate(fillRateRaw), lastRun, error: null };
+    return { inStock, fillRate: viewFillRate(fillRateRaw), inventoryHealth, lastRun, error: null };
   } catch (err: any) {
-    return { inStock: null, fillRate: null, lastRun: null, error: err?.message ?? String(err) };
+    return {
+      inStock: null,
+      fillRate: null,
+      inventoryHealth: null,
+      lastRun: null,
+      error: err?.message ?? String(err),
+    };
   }
 }
 export default async function OverviewPage() {
-  const { inStock, fillRate, lastRun, error } = await loadData();
+  const { inStock, fillRate, inventoryHealth, lastRun, error } = await loadData();
   if (error) {
     return (
       <div className="page">
@@ -98,6 +111,45 @@ export default async function OverviewPage() {
                 )}
               </>
             ) : undefined
+          }
+        />
+      </div>
+
+      {/* Separate section (own heading + grid) rather than folded into the row above —
+          this is its own daily job (/api/cron/aging) with its own "last run" cadence,
+          so visually grouping it as a distinct "quick view" makes that separation clear
+          rather than implying all four cards share one data pipeline. */}
+      <div className="section-header" style={{ marginTop: 28, marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>Inventory Health — Quick View</h2>
+        <p className="subtitle" style={{ margin: "4px 0 0" }}>
+          Turnover &amp; Aging/Dead Stock
+        </p>
+      </div>
+      <div className="kpi-grid">
+        <KpiCard
+          label="Inventory Turnover"
+          displayValue={turnoverLabel(inventoryHealth?.aggregate.overallTurnoverRatioAnnualized ?? null)}
+          definition="Trailing 90-day COGS ÷ average inventory (at cost), annualized. Higher means components are moving through stock faster."
+          href="/inventory-health"
+          linkLabel="Take a Deeper Look"
+          sub={
+            inventoryHealth
+              ? `${inventoryHealth.turnoverWindowDays}-day COGS window · updates daily via its own job`
+              : "Not yet run"
+          }
+        />
+        <KpiCard
+          label="Dead Stock (90d)"
+          displayValue={money(inventoryHealth?.aggregate.deadStockValue90 ?? null)}
+          definition="Value at cost of tracked components with no sales/consumption movement in the trailing 90 days."
+          href="/inventory-health"
+          linkLabel="Take a Deeper Look"
+          sub={
+            inventoryHealth
+              ? `${inventoryHealth.aggregate.deadStockCount90} of ${inventoryHealth.byComponent.length} components · ${money(
+                  inventoryHealth.aggregate.deadStockValue180
+                )} at the 180-day cutoff`
+              : "Not yet run"
           }
         />
       </div>
