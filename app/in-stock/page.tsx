@@ -44,7 +44,7 @@ export default async function InStockDetailPage() {
   });
 
   return (
-    <div className="page">
+    <div className="page page-instock">
       <div className="page-header">
         <div>
           <h1>In-Stock Rate Detail</h1>
