@@ -132,6 +132,62 @@ backfilled) snapshot days, since the backfill only knows in-stock/out-of-stock,
 not the actual on-hand quantity — so turnover accuracy will improve day by day as
 real snapshots accumulate, independent of how much history the backfill seeds.
 
+## Restricting access to the dashboard (Google sign-in)
+
+The dashboard is gated behind Google sign-in via [Auth.js (NextAuth v5)](https://authjs.dev),
+restricted to `@stat.io` emails — see `auth.ts` for the config and
+`middleware.ts` for which routes it protects. The restriction is enforced
+server-side in `auth.ts`'s `signIn` callback (it checks the verified email
+Google returns), not just by hinting Google's account picker at the
+`stat.io` domain, so it can't be bypassed by a non-Workspace Google account.
+
+`middleware.ts` only protects the page routes (`/`, `/in-stock`,
+`/fill-rate`, `/inventory-health`) — it deliberately leaves `/api/cron/*`
+alone (those are authenticated separately via `CRON_SECRET` and are called
+by Vercel Cron, not a logged-in browser) and `/api/kpis` alone (intended to
+stay callable by other consumers, e.g. a Slack bot, per its original design).
+
+### 1. Add the dependency
+
+```bash
+npm install next-auth@beta
+```
+
+### 2. Create a Google OAuth client
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   create (or reuse) a project, then **Create Credentials → OAuth client ID**
+   → Application type **Web application**.
+2. Under **Authorized redirect URIs**, add:
+   - `https://YOUR-PRODUCTION-DOMAIN/api/auth/callback/google`
+   - `http://localhost:3000/api/auth/callback/google` (for local dev)
+3. Copy the generated **Client ID** and **Client secret**.
+
+If Stat's Google Workspace admin restricts which OAuth apps employees can
+consent to, this client may need to be allow-listed there first.
+
+### 3. Set environment variables
+
+In Vercel → Project Settings → Environment Variables (and in `.env.local`
+for local dev), add:
+
+| Variable | Value |
+|---|---|
+| `AUTH_GOOGLE_ID` | the OAuth Client ID from step 2 |
+| `AUTH_GOOGLE_SECRET` | the OAuth Client secret from step 2 |
+| `AUTH_SECRET` | random string — generate with `npx auth secret` (writes it to `.env.local` automatically) or `openssl rand -base64 33` |
+
+Redeploy after adding the env vars. On Vercel, `AUTH_URL`/trusted-host
+detection is automatic; it's only needed if the app is deployed somewhere
+other than Vercel.
+
+### 4. Try it
+
+Visit any dashboard page while signed out — you'll be redirected to Google
+sign-in. A `@stat.io` account lands back on the dashboard with their email
+and a "Sign out" link in the top nav; any other account is rejected with
+Auth.js's default "Access Denied" page.
+
 ## Local development
 
 ```bash
