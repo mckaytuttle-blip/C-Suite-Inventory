@@ -130,9 +130,8 @@ export default async function OverviewPage() {
           so visually grouping it as a distinct "quick view" makes that separation clear
           rather than implying all four cards share one data pipeline. */}
       <div className="section-header" style={{ marginTop: 28, marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Inventory Health — Quick View</h2>
+        <h2 style={{ margin: 0 }}></h2>
         <p className="subtitle" style={{ margin: "4px 0 0" }}>
-          Turnover, Aging/Dead Stock, Capital Tied Up &amp; Spend
         </p>
       </div>
       <div className="kpi-grid kpi-grid-compact">
@@ -144,7 +143,7 @@ export default async function OverviewPage() {
           linkLabel="Take a Deeper Look"
           sub={
             inventoryHealth
-              ? `${inventoryHealth.turnoverWindowDays}-day COGS window · updates daily via its own job`
+              ? `${inventoryHealth.turnoverWindowDays}-day COGS window`
               : "Not yet run"
           }
         />
@@ -152,7 +151,7 @@ export default async function OverviewPage() {
           label="Dead Stock (90d)"
           displayValue={money(inventoryHealth?.aggregate.deadStockValue90 ?? null)}
           valueColor={toneColor(deadStockShareTone(deadStockShare90))}
-          definition="Value at cost of tracked components with no sales/consumption movement in the trailing 90 days."
+          definition="Value at cost of tracked components with no sales/consumption movement in the last 90 days."
           href="/inventory-health"
           linkLabel="Take a Deeper Look"
           sub={
@@ -171,7 +170,7 @@ export default async function OverviewPage() {
           linkLabel="Take a Deeper Look"
           sub={
             inventoryHealth
-              ? `Across ${inventoryHealth.byComponent.length} tracked components · updates daily via its own job`
+              ? `Across ${inventoryHealth.byComponent.length} tracked components`
               : "Not yet run"
           }
         />
