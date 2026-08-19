@@ -16,13 +16,20 @@ interface KpiCardProps {
   // Fill Rate card on the Overview page uses this to add an OTIF line underneath
   // the usual "shipped / ordered" summary.
   sub?: React.ReactNode;
+  // Explicit CSS color for the headline value (e.g. toneColor(rateTone(...))) —
+  // defaults to the plain brand teal when omitted. Opt-in per card rather than
+  // automatic: not every KPI has a natural "good/bad" (Capital Tied Up and Total
+  // Spend are pure magnitude with no target to compare against), so the caller
+  // decides which cards get red/yellow/teal status coloring and which stay neutral.
+  valueColor?: string;
 }
 
-// Headline KPI values on the Executive Overview always render in the brand teal,
-// regardless of how good/bad the number is — this card is meant to read as "the
-// brand's number," not a status light. Red/yellow/green status coloring still
-// applies on the /in-stock, /fill-rate, and /inventory-health detail tables, where
-// at-a-glance status across many rows is the point.
+// Headline KPI values on the Executive Overview render in the brand teal by default,
+// but callers can pass `valueColor` to switch a specific card to red/yellow/teal
+// status coloring instead (see In-Stock Rate / Fill Rate / Dead Stock on the Overview
+// page) — this card doesn't compute tone itself, it just renders whatever color it's
+// given, so the "is this KPI good or bad" judgment stays with the caller that
+// actually knows the metric's semantics.
 //
 // The whole card is the link (no separate "Take a Deeper Look" button pill) — click
 // anywhere on it to drill in. `definition` moved from an always-visible paragraph
@@ -39,6 +46,7 @@ export default function KpiCard({
   href,
   linkLabel,
   sub,
+  valueColor,
 }: KpiCardProps) {
   return (
     <Link href={href} className="kpi-card">
@@ -57,7 +65,7 @@ export default function KpiCard({
           i
         </span>
       </div>
-      <div className="value" style={{ color: "var(--brand-teal)" }}>
+      <div className="value" style={{ color: valueColor ?? "var(--brand-teal)" }}>
         {displayValue ?? pct(value)}
       </div>
       {sub && <div className="sub">{sub}</div>}
