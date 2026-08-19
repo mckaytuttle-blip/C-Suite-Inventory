@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import NavBar from "@/components/NavBar";
 import Footer from "@/components/Footer";
+import AuthStatus from "@/components/AuthStatus";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <NavBar />
+        <NavBar authStatus={<AuthStatus />} />
         {children}
         <Footer />
       </body>
