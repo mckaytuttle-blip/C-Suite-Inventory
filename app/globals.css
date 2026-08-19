@@ -19,19 +19,13 @@
   --bad: #fb7373;
   --radius: 14px;
 
-  /* Per-page identity accents — In-Stock / Fill Rate / Inventory Health each get one,
-     so the detail pages don't all read as the same page. Deliberately NOT reused for
-     status meaning (good/warn/bad stay reserved) — these only ever mark "which page
-     am I on" via a card/panel top-border accent (see further down), never a data
-     value. Sampled directly from the Stat logo's own blue → teal gradient rather
-     than an unrelated hue trio: In-Stock takes the blue end, Inventory Health takes
-     the teal end, and Fill Rate takes the midpoint blend between them — so all
-     three read as "the same brand" at different points along its gradient, not
-     three arbitrary colors. Overview keeps the plain brand teal/blue, unchanged,
-     since it's the "home" page. */
-  --accent-instock: #2f43f0;   /* brand blue — gradient start */
-  --accent-fillrate: #1895d4; /* blue-teal blend — gradient midpoint */
-  --accent-invhealth: #00e6b8; /* brand teal — gradient end */
+  /* Per-page identity accent — In-Stock / Fill Rate / Inventory Health all share
+     this one color for their card/panel top-border accent (see further down).
+     It's the midpoint blend of the Stat logo's blue → teal gradient. Deliberately
+     NOT reused for status meaning (good/warn/bad stay reserved) — this only ever
+     marks "you're on a detail page," never a data value. Overview keeps the plain
+     brand teal/blue, unchanged, since it's the "home" page. */
+  --accent-detail: #1895d4; /* blue-teal blend, from the logo gradient's midpoint */
 }
 * {
   box-sizing: border-box;
@@ -264,21 +258,16 @@ a.kpi-card:focus-visible .drill-hint {
   padding-top: 8px;
 }
 /* ---------- Per-page identity accent (top border on cards & panels) — In-Stock,
-   Fill Rate, and Inventory Health each get their own logo-derived accent color (see
-   :root) so the detail pages read as visually distinct from one another and from
-   Overview, without touching the good/warn/bad status colors used on the actual
-   KPI values themselves. ---------- */
+   Fill Rate, and Inventory Health share one logo-derived accent color (see :root)
+   marking these as detail pages, distinct from Overview, without touching the
+   good/warn/bad status colors used on the actual KPI values themselves. ---------- */
 .page-instock .kpi-card,
-.page-instock section.panel {
-  border-top: 3px solid var(--accent-instock);
-}
+.page-instock section.panel,
 .page-fillrate .kpi-card,
-.page-fillrate section.panel {
-  border-top: 3px solid var(--accent-fillrate);
-}
+.page-fillrate section.panel,
 .page-invhealth .kpi-card,
 .page-invhealth section.panel {
-  border-top: 3px solid var(--accent-invhealth);
+  border-top: 3px solid var(--accent-detail);
 }
 section.panel {
   background: var(--panel);
