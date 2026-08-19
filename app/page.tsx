@@ -1,7 +1,7 @@
 // app/page.tsx
 import KpiCard from "@/components/KpiCard";
 import { computeInStockRateSummary, InStockRateSummary, viewFillRate, FillRateView } from "@/lib/kpis";
-import { money, pct, turnoverLabel } from "@/lib/format";
+import { deadStockShareTone, money, pct, rateTone, toneColor, turnoverLabel } from "@/lib/format";
 import {
   getFillRateSummary,
   getInventoryHealthSummary,
@@ -68,6 +68,14 @@ export default async function OverviewPage() {
   const fillRateWindowLabel =
     fillRate?.windowLabel ?? (fillRate ? `${fillRate.windowStart} → ${fillRate.windowEnd}` : null);
 
+  // Same share-of-tracked-value calculation the Inventory Health detail page uses for
+  // Dead Stock's status color — repeated here (not imported) since it's one line and
+  // pulling in the whole page's computation for it isn't worth the coupling.
+  const deadStockShare90 =
+    inventoryHealth && inventoryHealth.aggregate.totalInventoryValue > 0
+      ? inventoryHealth.aggregate.deadStockValue90 / inventoryHealth.aggregate.totalInventoryValue
+      : null;
+
   return (
     <div className="page">
       <div className="page-header">
@@ -82,7 +90,8 @@ export default async function OverviewPage() {
         <KpiCard
           label="In-Stock Rate"
           value={inStock?.overallInStockRate ?? null}
-          definition="Percent of time a product is available for sale or immediate fulfillment"
+          valueColor={toneColor(rateTone(inStock?.overallInStockRate ?? null))}
+          definition="The percentage of time a product is physically available for sale or immediate fulfillment"
           href="/in-stock"
           linkLabel="Take a Deeper Look"
           sub={
@@ -94,6 +103,7 @@ export default async function OverviewPage() {
         <KpiCard
           label="Fill Rate"
           value={fillRate?.overallFillRate ?? null}
+          valueColor={toneColor(rateTone(fillRate?.overallFillRate ?? null))}
           definition="Percentage of SO that can be fulfilled immediately from existing stock without delays or backorders."
           href="/fill-rate"
           linkLabel="Take a Deeper Look"
@@ -120,8 +130,9 @@ export default async function OverviewPage() {
           so visually grouping it as a distinct "quick view" makes that separation clear
           rather than implying all four cards share one data pipeline. */}
       <div className="section-header" style={{ marginTop: 28, marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}></h2>
+        <h2 style={{ margin: 0 }}>Inventory Health — Quick View</h2>
         <p className="subtitle" style={{ margin: "4px 0 0" }}>
+          Turnover, Aging/Dead Stock, Capital Tied Up &amp; Spend
         </p>
       </div>
       <div className="kpi-grid kpi-grid-compact">
@@ -140,7 +151,8 @@ export default async function OverviewPage() {
         <KpiCard
           label="Dead Stock (90d)"
           displayValue={money(inventoryHealth?.aggregate.deadStockValue90 ?? null)}
-          definition="Value at cost of items with no sales/consumption movement in the trailing 90 days."
+          valueColor={toneColor(deadStockShareTone(deadStockShare90))}
+          definition="Value at cost of tracked components with no sales/consumption movement in the trailing 90 days."
           href="/inventory-health"
           linkLabel="Take a Deeper Look"
           sub={
@@ -154,7 +166,7 @@ export default async function OverviewPage() {
         <KpiCard
           label="Capital Tied Up in Inventory"
           displayValue={money(inventoryHealth?.aggregate.totalInventoryValue ?? null)}
-          definition="Current on-hand value across every priced tracked item."
+          definition="Current on-hand value at cost across every matched, priced tracked component."
           href="/inventory-health"
           linkLabel="Take a Deeper Look"
           sub={
@@ -166,7 +178,7 @@ export default async function OverviewPage() {
         <KpiCard
           label="Total Spend (Trailing 12 Months)"
           displayValue={money(inventoryHealth?.aggregate.spend?.totalSpend ?? null)}
-          definition="Total across all logged Zoho purchase orders."
+          definition="All Zoho purchase orders company-wide, not just the tracked hardware components."
           href="/inventory-health"
           linkLabel="Take a Deeper Look"
           sub={(() => {
