@@ -255,12 +255,12 @@ export default async function InventoryHealthPage() {
           <span className="drill-hint">Jump to table ↓</span>
         </a>
         <a href="#spend" className="kpi-card">
-          <div className="label">Total Spend (Trailing 12 Months)</div>
+          <div className="label">Total Spend (Year to Date)</div>
           <div className="value" style={{ color: "var(--brand-teal)" }}>
             {money(spend?.totalSpend ?? null)}
           </div>
           <p className="definition">
-            All Zoho purchase orders company-wide over the trailing 12 months, not just the
+            All Zoho purchase orders company-wide so far this calendar year, not just the
             tracked hardware components.
             {spend ? ` ${spend.poCount} purchase orders.` : ""}
           </p>
@@ -310,9 +310,9 @@ export default async function InventoryHealthPage() {
       </section>
 
       <section id="spend" className="panel" style={{ marginBottom: 28 }}>
-        <h2>Total Spend — By Vendor (Trailing 12 Months)</h2>
+        <h2>Total Spend — By Vendor (Year to Date)</h2>
         <p className="panel-sub">
-          Every Zoho purchase order company-wide over the trailing 12 months, grouped by vendor —
+          Every Zoho purchase order company-wide so far this calendar year, grouped by vendor —
           not scoped to the 83 tracked components. Shows the top 10 vendors by spend by default.
           {spend && ` Window: ${spend.windowStart} → ${spend.windowEnd}.`}
         </p>
