@@ -139,15 +139,15 @@ export interface VendorSpendShare {
 }
 
 /**
- * Org-wide purchase order spend over a trailing window — deliberately NOT scoped to
- * the 83 tracked components (Stat asked for total company procurement spend, not just
- * hardware). A separate Zoho pull from everything else in InventoryHealthSummary, so
- * it's nullable: if this piece of the aging cron fails, Aging/Turnover/Dead Stock
- * still save successfully and this just reports as unavailable rather than taking
- * down the whole snapshot.
+ * Org-wide purchase order spend for the current calendar year to date (Jan 1 →
+ * today) — deliberately NOT scoped to the 83 tracked components (Stat asked for
+ * total company procurement spend, not just hardware). A separate Zoho pull from
+ * everything else in InventoryHealthSummary, so it's nullable: if this piece of the
+ * aging cron fails, Aging/Turnover/Dead Stock still save successfully and this just
+ * reports as unavailable rather than taking down the whole snapshot.
  */
 export interface SpendSummary {
-  windowDays: number; // 365
+  windowDays: number; // days elapsed so far this calendar year (Jan 1 → windowEnd, inclusive) — not a fixed constant; grows toward 365/366 across the year and resets each January
   windowStart: string;
   windowEnd: string;
   totalSpend: number; // sum of PO totals, excluding cancelled
