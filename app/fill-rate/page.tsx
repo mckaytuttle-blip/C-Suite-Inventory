@@ -1,4 +1,5 @@
 // app/fill-rate/page.tsx
+import ExpandableTable, { ExpandableTableColumn } from "@/components/ExpandableTable";
 import Sparkline from "@/components/Sparkline";
 import { computeFillRateTrend, FillRateTrend, FillRateView, viewFillRate } from "@/lib/kpis";
 import { pct, rateTone, toneColor } from "@/lib/format";
@@ -70,6 +71,53 @@ export default async function FillRateDetailPage() {
         .join(" ")
     : "";
 
+  const columns: ExpandableTableColumn[] = [
+    { key: "name", label: "Product" },
+    { key: "fillRate", label: "Fill Rate", numeric: true },
+    { key: "shippedOrdered", label: "Shipped / Ordered", numeric: true },
+    { key: "trend", label: "Trend" },
+  ];
+  const rows = sorted.map((a) => ({
+    _key: a.name,
+    name: (
+      <>
+        {a.name}
+        {!!a.dropshippedUnits && (
+          <span
+            className="dropship-tag"
+            title={`${a.dropshippedUnits} unit(s) shipped via a closed dropship PO this month — counted as shipped even though Zoho's line-item quantity_shipped shows 0 for these.`}
+          >
+            Dropshipped
+          </span>
+        )}
+        {!!a.dropshipPendingUnits && (
+          <span
+            className="dropship-tag pending"
+            title={`${a.dropshipPendingUnits} unit(s) went out as a dropship this month but the linked PO hasn't closed in Zoho yet — not yet counted as shipped.`}
+          >
+            Dropship PO open
+          </span>
+        )}
+      </>
+    ),
+    fillRate: (
+      <>
+        <span className="bar-bg">
+          <span
+            className="bar-fill"
+            style={{
+              width: `${a.fillRate === null ? 0 : Math.max(2, a.fillRate * 100)}%`,
+              background: toneColor(rateTone(a.fillRate)),
+            }}
+          />
+        </span>
+        <span className="rate-value">{pct(a.fillRate)}</span>
+      </>
+    ),
+    shippedOrdered: `${a.shipped.toLocaleString()} / ${a.ordered.toLocaleString()}`,
+    trend: <Sparkline points={trend?.byAssembly[a.name] ?? []} />,
+  }));
+
   return (
     <div className="page page-fillrate">
       <div className="page-header">
@@ -139,61 +187,11 @@ export default async function FillRateDetailPage() {
         <p className="panel-sub">
           Sorted worst-first. Ordered/shipped totals are from sales order line items in{" "}
           {windowLabel}; the trend line shows how each product&apos;s reported fill rate has moved
-          day to day and updates daily until the month&apos;s numbers are final, then carries over once the next month begins.
+          day to day and updates daily until the month&apos;s numbers are final, then carries over
+          once the next month begins. Shows the 10 lowest fill-rate products by default — expand
+          to see all {sorted.length}.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Fill Rate</th>
-              <th>Shipped / Ordered</th>
-              <th>Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((a) => (
-              <tr key={a.name}>
-                <td className="name">
-                  {a.name}
-                  {!!a.dropshippedUnits && (
-                    <span
-                      className="dropship-tag"
-                      title={`${a.dropshippedUnits} unit(s) shipped via a closed dropship PO this month — counted as shipped even though Zoho's line-item quantity_shipped shows 0 for these.`}
-                    >
-                      Dropshipped
-                    </span>
-                  )}
-                  {!!a.dropshipPendingUnits && (
-                    <span
-                      className="dropship-tag pending"
-                      title={`${a.dropshipPendingUnits} unit(s) went out as a dropship this month but the linked PO hasn't closed in Zoho yet — not yet counted as shipped.`}
-                    >
-                      Dropship PO open
-                    </span>
-                  )}
-                </td>
-                <td className="numeric">
-                  <span className="bar-bg">
-                    <span
-                      className="bar-fill"
-                      style={{
-                        width: `${a.fillRate === null ? 0 : Math.max(2, a.fillRate * 100)}%`,
-                        background: toneColor(rateTone(a.fillRate)),
-                      }}
-                    />
-                  </span>
-                  <span className="rate-value">{pct(a.fillRate)}</span>
-                </td>
-                <td className="numeric">
-                  {a.shipped.toLocaleString()} / {a.ordered.toLocaleString()}
-                </td>
-                <td>
-                  <Sparkline points={trend?.byAssembly[a.name] ?? []} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ExpandableTable columns={columns} rows={rows} />
       </section>
     </div>
   );
