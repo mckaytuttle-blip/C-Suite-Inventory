@@ -203,8 +203,14 @@ export default async function InventoryHealthPage() {
         </p>
       </div>
 
+      {/* Each card is an <a href="#..."> rather than a <div> — same .kpi-card class
+          picks up the existing a.kpi-card hover-lift styling from globals.css (built
+          for the Overview page's clickable cards), so this gets that affordance for
+          free. Each links down to the panel below with the matching data; the two
+          Dead Stock cards both point at the single Aging/Dead Stock table, since
+          that one table covers both the 90d and 180d cutoffs. */}
       <div className="kpi-grid" style={{ marginBottom: 28 }}>
-        <div className="kpi-card">
+        <a href="#turnover" className="kpi-card">
           <div className="label">Inventory Turnover</div>
           <div className="value" style={{ color: "var(--brand-teal)" }}>
             {turnoverLabel(aggregate.overallTurnoverRatioAnnualized)}
@@ -213,8 +219,9 @@ export default async function InventoryHealthPage() {
             Trailing 90-day COGS ÷ average inventory (at cost), annualized. $-weighted across all
             tracked components with both a purchase cost and enough snapshot history.
           </p>
-        </div>
-        <div className="kpi-card">
+          <span className="drill-hint">Jump to table ↓</span>
+        </a>
+        <a href="#aging" className="kpi-card">
           <div className="label">Dead Stock — 90 Days</div>
           <div className="value" style={{ color: toneColor(deadStockShareTone(deadStockShare90)) }}>
             {money(aggregate.deadStockValue90)}
@@ -223,8 +230,9 @@ export default async function InventoryHealthPage() {
             {aggregate.deadStockCount90} component(s) with no movement in the last 90 days
             {deadStockShare90 !== null ? ` · ${pct(deadStockShare90)} of tracked inventory value` : ""}.
           </p>
-        </div>
-        <div className="kpi-card">
+          <span className="drill-hint">Jump to table ↓</span>
+        </a>
+        <a href="#aging" className="kpi-card">
           <div className="label">Dead Stock — 180 Days</div>
           <div className="value" style={{ color: toneColor("bad") }}>
             {money(aggregate.deadStockValue180)}
@@ -233,8 +241,9 @@ export default async function InventoryHealthPage() {
             {aggregate.deadStockCount180} component(s) with no recorded movement in the last
             180 days.
           </p>
-        </div>
-        <div className="kpi-card">
+          <span className="drill-hint">Jump to table ↓</span>
+        </a>
+        <a href="#capital" className="kpi-card">
           <div className="label">Capital Tied Up in Inventory</div>
           <div className="value" style={{ color: "var(--brand-teal)" }}>
             {money(aggregate.totalInventoryValue)}
@@ -243,8 +252,9 @@ export default async function InventoryHealthPage() {
             Current on-hand value at cost across every matched, priced tracked component — the
             $ this hardware is holding right now.
           </p>
-        </div>
-        <div className="kpi-card">
+          <span className="drill-hint">Jump to table ↓</span>
+        </a>
+        <a href="#spend" className="kpi-card">
           <div className="label">Total Spend (Trailing 12 Months)</div>
           <div className="value" style={{ color: "var(--brand-teal)" }}>
             {money(spend?.totalSpend ?? null)}
@@ -254,7 +264,8 @@ export default async function InventoryHealthPage() {
             tracked hardware components.
             {spend ? ` ${spend.poCount} purchase orders.` : ""}
           </p>
-        </div>
+          <span className="drill-hint">Jump to table ↓</span>
+        </a>
       </div>
 
       {(aggregate.componentsUnmatched > 0 || aggregate.componentsMissingCost > 0) && (
@@ -267,7 +278,7 @@ export default async function InventoryHealthPage() {
         </p>
       )}
 
-      <section className="panel" style={{ marginBottom: 28 }}>
+      <section id="capital" className="panel" style={{ marginBottom: 28 }}>
         <h2>Capital Tied Up — By Component</h2>
         <p className="panel-sub">
           The components carrying the most $ in on-hand stock right now, highest first. Shows the
@@ -281,7 +292,7 @@ export default async function InventoryHealthPage() {
         />
       </section>
 
-      <section className="panel" style={{ marginBottom: 28 }}>
+      <section id="vendor-concentration" className="panel" style={{ marginBottom: 28 }}>
         <h2>Vendor Concentration</h2>
         <p className="panel-sub">
           Share of tracked components&apos; current inventory value ($) and SKU count by vendor —
@@ -298,7 +309,7 @@ export default async function InventoryHealthPage() {
         )}
       </section>
 
-      <section className="panel" style={{ marginBottom: 28 }}>
+      <section id="spend" className="panel" style={{ marginBottom: 28 }}>
         <h2>Total Spend — By Vendor (Trailing 12 Months)</h2>
         <p className="panel-sub">
           Every Zoho purchase order company-wide over the trailing 12 months, grouped by vendor —
@@ -315,7 +326,7 @@ export default async function InventoryHealthPage() {
         )}
       </section>
 
-      <section className="panel" style={{ marginBottom: 28 }}>
+      <section id="aging" className="panel" style={{ marginBottom: 28 }}>
         <h2>Aging / Dead Stock</h2>
         <p className="panel-sub">
           &quot;Movement&quot; means a sales order line item — either this component sold
@@ -327,7 +338,7 @@ export default async function InventoryHealthPage() {
         <ExpandableTable columns={agingColumns} rows={agingRows} />
       </section>
 
-      <section className="panel">
+      <section id="turnover" className="panel">
         <h2>Inventory Turnover by component</h2>
         <p className="panel-sub">
           COGS uses units consumed in the trailing 90 days (direct sales plus BOM rolldown) ×
