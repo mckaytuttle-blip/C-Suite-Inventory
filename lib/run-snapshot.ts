@@ -27,10 +27,6 @@ import {
   VendorInventoryShare,
 } from "./store";
 
-// Trailing window for the org-wide "Total Spend" KPI — 12 months, per Stat's choice
-// (a CEO-framed annual number, not the shorter 90-day COGS window used elsewhere).
-const SPEND_WINDOW_DAYS = 365;
-
 /** Pull today's stock levels for every tracked component and store the snapshot. */
 export async function runComponentSnapshot(date: string = todayKey()): Promise<ComponentSnapshot> {
   const items = await fetchAllItems();
@@ -434,17 +430,21 @@ export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSumma
     .map(([vendorName, v]) => ({ vendorName, inventoryValue: v.inventoryValue, skuCount: v.skuCount }))
     .sort((a, b) => b.inventoryValue - a.inventoryValue);
 
-  // Total Spend — org-wide purchase order spend, trailing 12 months. Deliberately NOT
-  // scoped to the 83 tracked components (Stat asked for total company procurement
-  // spend). This is a separate Zoho pull from everything above, so it's wrapped in its
-  // own try/catch: if it fails, Aging/Turnover/Dead Stock/Vendor Concentration still
-  // save successfully and this just reports as unavailable rather than losing the
-  // whole daily snapshot over a piece of it.
+  // Total Spend — org-wide purchase order spend, calendar year to date (Jan 1 →
+  // today). Deliberately NOT scoped to the 83 tracked components (Stat asked for
+  // total company procurement spend). Switched from a rolling trailing-12-months
+  // window to year-to-date since a "this year's spend" framing is what leadership
+  // actually reads this number as — a rolling window sitting next to a January-
+  // dated range read as confusing. Resets naturally each January 1. This is a
+  // separate Zoho pull from everything above, so it's wrapped in its own try/catch:
+  // if it fails, Aging/Turnover/Dead Stock/Vendor Concentration still save
+  // successfully and this just reports as unavailable rather than losing the whole
+  // daily snapshot over a piece of it.
   let spend: SpendSummary | null = null;
   try {
-    const spendDateKeys = lastNDateKeys(SPEND_WINDOW_DAYS);
-    const spendWindowStart = spendDateKeys[0];
-    const spendWindowEnd = spendDateKeys[spendDateKeys.length - 1];
+    const today = todayKey();
+    const spendWindowStart = `${today.slice(0, 4)}-01-01`;
+    const spendWindowEnd = today;
     const purchaseOrders = await fetchAllPurchaseOrdersInRange(spendWindowStart, spendWindowEnd);
     const nonCancelled = purchaseOrders.filter((po) => po.status !== "cancelled");
     const totalSpend = nonCancelled.reduce((s, po) => s + (po.total ?? 0), 0);
@@ -462,7 +462,10 @@ export async function runInventoryHealthSnapshot(): Promise<InventoryHealthSumma
       .sort((a, b) => b.spend - a.spend);
 
     spend = {
-      windowDays: SPEND_WINDOW_DAYS,
+      // Days elapsed so far this calendar year (Jan 1 through today, inclusive) —
+      // grows from 1 in early January toward 365/366 by December, rather than a
+      // fixed constant, since the window itself is no longer a fixed size.
+      windowDays: daysBetweenKeys(spendWindowStart, spendWindowEnd) + 1,
       windowStart: spendWindowStart,
       windowEnd: spendWindowEnd,
       totalSpend,
