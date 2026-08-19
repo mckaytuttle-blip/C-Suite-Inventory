@@ -1,4 +1,5 @@
 // app/in-stock/page.tsx
+import ExpandableTable, { ExpandableTableColumn } from "@/components/ExpandableTable";
 import Heatmap from "@/components/Heatmap";
 import { computeInStockRateSummary, InStockRateSummary } from "@/lib/kpis";
 import { pct, rateTone, toneColor } from "@/lib/format";
@@ -43,6 +44,40 @@ export default async function InStockDetailPage() {
     return av - bv;
   });
 
+  const columns: ExpandableTableColumn[] = [
+    { key: "name", label: "Component" },
+    { key: "tier", label: "Tier" },
+    { key: "rate", label: "In-Stock Rate", numeric: true },
+    { key: "days", label: "Days In Stock", numeric: true },
+    { key: "trend", label: "30-Day Trend" },
+  ];
+  const rows = sorted.map((c) => ({
+    _key: c.name,
+    name: c.name,
+    tier: <span className={tierClass(c.tier)}>{c.tier}</span>,
+    rate: (
+      <>
+        <span className="bar-bg">
+          <span
+            className="bar-fill"
+            style={{
+              width: `${c.inStockRate === null ? 0 : Math.max(2, c.inStockRate * 100)}%`,
+              background: toneColor(rateTone(c.inStockRate)),
+            }}
+          />
+        </span>
+        <span className="rate-value">{pct(c.inStockRate)}</span>
+      </>
+    ),
+    days: `${c.daysInStock} / ${c.daysTracked}`,
+    trend: (
+      <Heatmap
+        history={c.history}
+        labels={inStock.dateKeys.map((d, i) => `${d}: ${c.history[i]}`)}
+      />
+    ),
+  }));
+
   return (
     <div className="page page-instock">
       <div className="page-header">
@@ -75,49 +110,10 @@ export default async function InStockDetailPage() {
         <p className="panel-sub">
           Sorted worst-first. Each cell in the trend strip is one day — green means stock was
           available, red means it wasn&apos;t, gray means no snapshot exists for that day yet.
+          Shows the 10 lowest in-stock-rate components by default — expand to see all{" "}
+          {inStock.byComponent.length}.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th>Tier</th>
-              <th>In-Stock Rate</th>
-              <th>Days In Stock</th>
-              <th>30-Day Trend</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((c) => (
-              <tr key={c.name}>
-                <td className="name">{c.name}</td>
-                <td>
-                  <span className={tierClass(c.tier)}>{c.tier}</span>
-                </td>
-                <td className="numeric">
-                  <span className="bar-bg">
-                    <span
-                      className="bar-fill"
-                      style={{
-                        width: `${c.inStockRate === null ? 0 : Math.max(2, c.inStockRate * 100)}%`,
-                        background: toneColor(rateTone(c.inStockRate)),
-                      }}
-                    />
-                  </span>
-                  <span className="rate-value">{pct(c.inStockRate)}</span>
-                </td>
-                <td className="numeric">
-                  {c.daysInStock} / {c.daysTracked}
-                </td>
-                <td>
-                  <Heatmap
-                    history={c.history}
-                    labels={inStock.dateKeys.map((d, i) => `${d}: ${c.history[i]}`)}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ExpandableTable columns={columns} rows={rows} />
       </section>
     </div>
   );
