@@ -10,9 +10,9 @@ const LINKS = [
   { href: "/inventory-health", label: "Inventory Health" },
 ];
 
-// TODO: replace with the real inventory-accuracy repo URL. Cross-link only — it
-// opens the repo in a new tab, no data from it is pulled into this dashboard.
-const INVENTORY_ACCURACY_REPO_URL = "https://github.com/REPLACE-ME/inventory-accuracy";
+// Cross-link only — it opens the Inventory Accuracy site in a new tab, no data
+// from it is pulled into this dashboard.
+const INVENTORY_ACCURACY_REPO_URL = "https://mckaytuttle-blip.github.io/Inventory-Accuracy/";
 
 export default function NavBar() {
   const pathname = usePathname();
