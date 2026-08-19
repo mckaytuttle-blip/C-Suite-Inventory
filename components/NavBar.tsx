@@ -14,7 +14,16 @@ const LINKS = [
 // from it is pulled into this dashboard.
 const INVENTORY_ACCURACY_REPO_URL = "https://mckaytuttle-blip.github.io/Inventory-Accuracy/";
 
-export default function NavBar() {
+interface NavBarProps {
+  // Rendered as-is at the end of the nav. This is a Server Component
+  // (AuthStatus, which reads the session) handed down from the layout —
+  // NavBar itself stays a Client Component (needed for usePathname), and
+  // Server Components can be passed into Client Components as a prop/child
+  // even though they can't be imported by one directly.
+  authStatus?: React.ReactNode;
+}
+
+export default function NavBar({ authStatus }: NavBarProps) {
   const pathname = usePathname();
 
   return (
@@ -36,6 +45,7 @@ export default function NavBar() {
         <a href={INVENTORY_ACCURACY_REPO_URL} target="_blank" rel="noopener noreferrer">
           Inventory Accuracy ↗
         </a>
+        {authStatus}
       </nav>
     </header>
   );
