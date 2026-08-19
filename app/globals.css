@@ -44,6 +44,11 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+/* Smooth-scrolls same-page anchor jumps (e.g. an Inventory Health KPI card linking
+   down to its table) rather than an instant jump-cut. */
+html {
+  scroll-behavior: smooth;
+}
 a {
   color: inherit;
 }
@@ -279,6 +284,10 @@ section.panel {
   border-radius: var(--radius);
   padding: 24px;
   margin-bottom: 24px;
+  /* Offsets anchor-jump landing position so a section's heading isn't tucked
+     underneath the sticky .topnav (which stays pinned to the top of the
+     viewport) when a KPI card link scrolls down to it. */
+  scroll-margin-top: 88px;
 }
 section.panel h2 {
   font-size: 15px;
