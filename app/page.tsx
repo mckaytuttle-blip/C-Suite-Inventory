@@ -175,9 +175,9 @@ export default async function OverviewPage() {
           }
         />
         <KpiCard
-          label="Total Spend (Trailing 12 Months)"
+          label="Total Spend (Year to Date)"
           displayValue={money(inventoryHealth?.aggregate.spend?.totalSpend ?? null)}
-          definition="All Zoho purchase orders company-wide, not just the tracked hardware components."
+          definition="All Zoho purchase orders company-wide so far this calendar year, not just the tracked hardware components."
           href="/inventory-health"
           linkLabel="Take a Deeper Look"
           sub={(() => {
