@@ -23,13 +23,15 @@
      so the detail pages don't all read as the same page. Deliberately NOT reused for
      status meaning (good/warn/bad stay reserved) — these only ever mark "which page
      am I on" via a card/panel top-border accent (see further down), never a data
-     value. Validated as a categorical, colorblind-safe, sufficient-contrast trio via
-     the dataviz skill's validate_palette.js (light mode, all checks pass) — chosen
-     deliberately rather than eyeballed. Overview keeps the plain brand teal/blue,
-     unchanged, since it's the "home" page.  */
-  --accent-instock: #7c3aed;   /* violet */
-  --accent-fillrate: #db2777;  /* rose */
-  --accent-invhealth: #b45309; /* amber/bronze */
+     value. Sampled directly from the Stat logo's own blue → teal gradient rather
+     than an unrelated hue trio: In-Stock takes the blue end, Inventory Health takes
+     the teal end, and Fill Rate takes the midpoint blend between them — so all
+     three read as "the same brand" at different points along its gradient, not
+     three arbitrary colors. Overview keeps the plain brand teal/blue, unchanged,
+     since it's the "home" page. */
+  --accent-instock: #2f43f0;   /* brand blue — gradient start */
+  --accent-fillrate: #1895d4; /* blue-teal blend — gradient midpoint */
+  --accent-invhealth: #00e6b8; /* brand teal — gradient end */
 }
 * {
   box-sizing: border-box;
@@ -262,7 +264,7 @@ a.kpi-card:focus-visible .drill-hint {
   padding-top: 8px;
 }
 /* ---------- Per-page identity accent (top border on cards & panels) — In-Stock,
-   Fill Rate, and Inventory Health each get their own validated accent color (see
+   Fill Rate, and Inventory Health each get their own logo-derived accent color (see
    :root) so the detail pages read as visually distinct from one another and from
    Overview, without touching the good/warn/bad status colors used on the actual
    KPI values themselves. ---------- */
