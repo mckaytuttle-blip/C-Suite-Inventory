@@ -206,7 +206,7 @@ export default async function InventoryHealthPage() {
       <div className="kpi-grid" style={{ marginBottom: 28 }}>
         <div className="kpi-card">
           <div className="label">Inventory Turnover</div>
-          <div className="value" style={{ color: "var(--accent-invhealth)" }}>
+          <div className="value" style={{ color: "var(--brand-teal)" }}>
             {turnoverLabel(aggregate.overallTurnoverRatioAnnualized)}
           </div>
           <p className="definition">
@@ -236,7 +236,7 @@ export default async function InventoryHealthPage() {
         </div>
         <div className="kpi-card">
           <div className="label">Capital Tied Up in Inventory</div>
-          <div className="value" style={{ color: "var(--accent-invhealth)" }}>
+          <div className="value" style={{ color: "var(--brand-teal)" }}>
             {money(aggregate.totalInventoryValue)}
           </div>
           <p className="definition">
@@ -246,7 +246,7 @@ export default async function InventoryHealthPage() {
         </div>
         <div className="kpi-card">
           <div className="label">Total Spend (Trailing 12 Months)</div>
-          <div className="value" style={{ color: "var(--accent-invhealth)" }}>
+          <div className="value" style={{ color: "var(--brand-teal)" }}>
             {money(spend?.totalSpend ?? null)}
           </div>
           <p className="definition">
