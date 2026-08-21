@@ -101,6 +101,67 @@ a {
   background: var(--panel);
   border: 1px solid var(--panel-border-strong);
 }
+/* ---------- "Additional Views" nav dropdown (cross-links to standalone pages
+   hosted outside this app) — trigger styled like the plain nav links above,
+   menu styled like the site's other floating panels (tooltip/expand-toggle). ---------- */
+.nav-dropdown {
+  position: relative;
+}
+.nav-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-dropdown-trigger:hover,
+.nav-dropdown-trigger[aria-expanded="true"] {
+  color: var(--text);
+  background: var(--panel-hover);
+}
+.nav-dropdown-trigger .chevron {
+  font-size: 8px;
+  transition: transform 0.15s;
+}
+.nav-dropdown-trigger[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.nav-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--panel-hover);
+  border: 1px solid var(--panel-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+.nav-dropdown-menu a {
+  display: block;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.nav-dropdown-menu a:hover,
+.nav-dropdown-menu a:focus-visible {
+  background: var(--panel);
+}
 .page {
   max-width: 1180px;
   margin: 0 auto;
