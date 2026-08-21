@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 const LINKS = [
   { href: "/", label: "Overview" },
@@ -10,9 +11,15 @@ const LINKS = [
   { href: "/inventory-health", label: "Inventory Health" },
 ];
 
-// Cross-link only — it opens the Inventory Accuracy site in a new tab, no data
-// from it is pulled into this dashboard.
-const INVENTORY_ACCURACY_REPO_URL = "https://mckaytuttle-blip.github.io/Inventory-Accuracy/";
+// Cross-links only — these open standalone pages hosted outside this app (GitHub
+// Pages) in a new tab; no data from either is pulled into this dashboard. Grouped
+// under one "Additional Views" dropdown rather than as separate top-level nav
+// items, so the main nav doesn't grow a new pill every time another cross-linked
+// view gets added — add future ones here.
+const ADDITIONAL_VIEWS = [
+  { href: "https://mckaytuttle-blip.github.io/Inventory-Accuracy/", label: "Inventory Accuracy" },
+  { href: "https://mckaytuttle-blip.github.io/stat-io-dashboard/", label: "Assembly Availability" },
+];
 
 interface NavBarProps {
   // Rendered as-is at the end of the nav. This is a Server Component
@@ -25,6 +32,29 @@ interface NavBarProps {
 
 export default function NavBar({ authStatus }: NavBarProps) {
   const pathname = usePathname();
+  const [viewsOpen, setViewsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click or Escape — a dropdown that only closes by re-clicking
+  // its own trigger feels stuck, especially once a menu link opens a new tab and
+  // focus never leaves this page.
+  useEffect(() => {
+    if (!viewsOpen) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setViewsOpen(false);
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setViewsOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [viewsOpen]);
 
   return (
     <header className="topnav">
@@ -42,9 +72,34 @@ export default function NavBar({ authStatus }: NavBarProps) {
             </Link>
           );
         })}
-        <a href={INVENTORY_ACCURACY_REPO_URL} target="_blank" rel="noopener noreferrer">
-          Inventory Accuracy ↗
-        </a>
+        <div className="nav-dropdown" ref={dropdownRef}>
+          <button
+            type="button"
+            className="nav-dropdown-trigger"
+            aria-haspopup="menu"
+            aria-expanded={viewsOpen}
+            onClick={() => setViewsOpen((v) => !v)}
+          >
+            Additional Views
+            <span className="chevron" aria-hidden="true">▼</span>
+          </button>
+          {viewsOpen && (
+            <div className="nav-dropdown-menu" role="menu">
+              {ADDITIONAL_VIEWS.map((view) => (
+                <a
+                  key={view.href}
+                  href={view.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  role="menuitem"
+                  onClick={() => setViewsOpen(false)}
+                >
+                  {view.label} ↗
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
         {authStatus}
       </nav>
     </header>
