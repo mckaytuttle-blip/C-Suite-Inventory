@@ -93,7 +93,7 @@ export default async function OverviewPage() {
           valueColor={toneColor(rateTone(inStock?.overallInStockRate ?? null))}
           definition="The percentage of time a product is physically available for sale or immediate fulfillment"
           href="/in-stock"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={
             inStock
               ? `${inStock.daysWithData} of ${inStock.windowDays} days of data · ${inStock.byComponent.length} components tracked`
@@ -106,7 +106,7 @@ export default async function OverviewPage() {
           valueColor={toneColor(rateTone(fillRate?.overallFillRate ?? null))}
           definition="Percentage of SO that can be fulfilled immediately from existing stock without delays or backorders."
           href="/fill-rate"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={
             fillRate ? (
               <>
@@ -140,7 +140,7 @@ export default async function OverviewPage() {
           displayValue={turnoverLabel(inventoryHealth?.aggregate.overallTurnoverRatioAnnualized ?? null)}
           definition="Trailing 90-day COGS ÷ average inventory (at cost), annualized. Higher means components are moving through stock faster."
           href="/inventory-health"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={
             inventoryHealth
               ? `${inventoryHealth.turnoverWindowDays}-day COGS window`
@@ -153,7 +153,7 @@ export default async function OverviewPage() {
           valueColor={toneColor(deadStockShareTone(deadStockShare90))}
           definition="Value at cost of tracked components with no sales/consumption movement in the last 90 days."
           href="/inventory-health"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={
             inventoryHealth
               ? `${inventoryHealth.aggregate.deadStockCount90} of ${inventoryHealth.byComponent.length} components · ${money(
@@ -167,7 +167,7 @@ export default async function OverviewPage() {
           displayValue={money(inventoryHealth?.aggregate.totalInventoryValue ?? null)}
           definition="Current on-hand value at cost across every matched, priced tracked component."
           href="/inventory-health"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={
             inventoryHealth
               ? `Across ${inventoryHealth.byComponent.length} tracked components`
@@ -179,7 +179,7 @@ export default async function OverviewPage() {
           displayValue={money(inventoryHealth?.aggregate.spend?.totalSpend ?? null)}
           definition="All Zoho purchase orders company-wide so far this calendar year, not just the tracked hardware components."
           href="/inventory-health"
-          linkLabel="Take a Deeper Look"
+          linkLabel=""
           sub={(() => {
             const spend = inventoryHealth?.aggregate.spend;
             if (!spend) return "Not yet run";
